@@ -39,13 +39,21 @@ export function BottomNav() {
       aria-label="Navegación principal"
       className="barra-fija fixed inset-x-0 bottom-0 z-30 border-t border-outline-variant bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
     >
-      {/* Indicador que se desliza entre pestañas con resorte */}
-      <span
-        aria-hidden="true"
-        className={cn('absolute top-0 h-[3px] w-7 rounded-b-full bg-primary transition-[left,opacity] spring-spatial', activo ? 'opacity-100' : 'opacity-0')}
-        style={{ left: `calc(${(Math.max(0, MOBILE_TABS.indexOf(activo ?? MOBILE_TABS[0])) + 0.5) * (100 / MOBILE_TABS.length)}% - 14px)` }}
-      />
-      <ul className="flex h-[var(--nav-h)] items-stretch justify-around">
+      {/* Indicador metaball: dos píldoras con resortes distintos; al viajar se estiran y se fusionan */}
+      <span aria-hidden="true" className="goo-sm pointer-events-none absolute inset-x-0 top-[9px] h-8">
+        {[0, 1].map((k) => (
+          <span
+            key={k}
+            className={cn('absolute top-0 h-8 w-14 rounded-full bg-primary-container transition-[left,opacity]', activo ? 'opacity-100' : 'opacity-0')}
+            style={{
+              left: `calc(${(Math.max(0, MOBILE_TABS.indexOf(activo ?? MOBILE_TABS[0])) + 0.5) * (100 / MOBILE_TABS.length)}% - 28px)`,
+              transitionTimingFunction: k === 0 ? 'var(--md-motion-spatial-fast-easing, ease-out)' : 'var(--md-motion-spatial-slow-easing, ease-out)',
+              transitionDuration: k === 0 ? 'var(--md-motion-spatial-fast-duration, 200ms)' : 'var(--md-motion-spatial-slow-duration, 500ms)',
+            }}
+          />
+        ))}
+      </span>
+      <ul className="relative z-10 flex h-[var(--nav-h)] items-stretch justify-around">
         {MOBILE_TABS.map((id) => {
           const on = activo === id
           return (
@@ -55,7 +63,7 @@ export function BottomNav() {
                 aria-label={LABELS[id]}
                 aria-current={on ? 'page' : undefined}
                 onClick={() => click(id)}
-                className="flex h-full min-w-12 flex-1 items-center justify-center"
+                className={cn('flex h-full min-w-12 flex-1 items-center justify-center transition-colors', on && id !== 'perfil' && 'text-on-primary-container')}
               >
                 {id === 'perfil' ? (
                   <span className={cn('rounded-full p-[2px]', on ? 'ring-2 ring-on-surface' : '')}>

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router'
 import { ErrorBoundary } from '../../components/ErrorBoundary'
+import { GooFilters } from '../../components/ui/Blobs'
 import { Snackbars } from '../../components/ui/Feedback'
 import { IconButton } from '../../components/ui/IconButton'
 import { NotificationsList } from '../../features/notifications/NotificationsList'
@@ -72,6 +73,7 @@ export function AppLayout() {
 
   return (
     <div className="min-h-svh bg-surface">
+      <GooFilters />
       <SideNav />
       <SidePanel />
       <main

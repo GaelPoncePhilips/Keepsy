@@ -74,7 +74,7 @@ export function CenteredLoader({ className }: { className?: string }) {
 export function EmptyState({ icon, title, text, action }: { icon: string; title: string; text?: string; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center px-6 py-14 text-center">
-      <span className="mb-4 flex size-[72px] items-center justify-center rounded-full border-2 border-on-surface">
+      <span className="blob mb-4 flex size-[80px] items-center justify-center bg-primary-container text-on-primary-container">
         <Icon name={icon} size={36} />
       </span>
       <h3 className="type-headline-s emphasized">{title}</h3>

@@ -551,3 +551,84 @@ select:focus-visible {
 .select-pop {
   animation: select-pop 380ms var(--md-motion-bounce-easing, ease-out);
 }
+
+/* ---------- Blobs / metaballs */
+.goo {
+  filter: url(#goo-filter);
+}
+.goo-sm {
+  filter: url(#goo-sm-filter);
+}
+@keyframes blob-morph {
+  0%,
+  100% {
+    border-radius: 60% 40% 55% 45% / 55% 45% 60% 40%;
+  }
+  33% {
+    border-radius: 42% 58% 38% 62% / 60% 40% 55% 45%;
+  }
+  66% {
+    border-radius: 55% 45% 62% 38% / 42% 58% 44% 56%;
+  }
+}
+.blob {
+  animation: blob-morph 10s ease-in-out infinite;
+}
+@keyframes blob-drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(18%, 12%) rotate(40deg);
+  }
+}
+@keyframes blob-drift-b {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(-22%, 10%) rotate(-35deg);
+  }
+}
+@keyframes blob-drift-c {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(14%, -18%) rotate(30deg);
+  }
+}
+.blob-drift-a {
+  animation: blob-morph 11s ease-in-out infinite, blob-drift-a 19s ease-in-out infinite;
+}
+.blob-drift-b {
+  animation: blob-morph 13s ease-in-out infinite reverse, blob-drift-b 23s ease-in-out infinite;
+}
+.blob-drift-c {
+  animation: blob-morph 9s ease-in-out infinite, blob-drift-c 17s ease-in-out infinite;
+}
+/* Tile "blob" de Crear: la mancha se deforma al presionar */
+.blob-tile {
+  border-radius: 58% 42% 52% 48% / 50% 56% 44% 50%;
+  transition: border-radius var(--md-motion-spatial-default-duration, 350ms) var(--md-motion-spatial-default-easing, ease-out),
+    transform var(--md-motion-spatial-fast-duration, 200ms) var(--md-motion-spatial-fast-easing, ease-out);
+}
+.blob-tile:hover,
+.blob-tile:focus-visible {
+  border-radius: 45% 55% 42% 58% / 58% 44% 56% 42%;
+}
+.blob-tile:active {
+  border-radius: 50%;
+  transform: scale(0.92);
+}
+@media (prefers-reduced-motion: reduce) {
+  .blob,
+  .blob-drift-a,
+  .blob-drift-b,
+  .blob-drift-c {
+    animation: none !important;
+  }
+}
