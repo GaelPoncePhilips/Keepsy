@@ -1,5 +1,6 @@
 /** Sesión: usuario logueado, login/logout y cambio de cuenta de desarrollo sin recargar. */
 import { create } from 'zustand'
+import { limpiarCache } from '../lib/hooks'
 import { auth, setTemporalIdentity } from '../services/client'
 import * as usuariosApi from '../services/usuarios'
 import type { Usuario } from '../types/api'
@@ -43,12 +44,14 @@ export const useSession = create<SessionState>((set, get) => ({
     auth.setToken(access_token)
     const u = await usuariosApi.me()
     setTemporalIdentity(u.username)
+    limpiarCache()
     set({ usuario: u, estado: 'autenticado', sesionId: get().sesionId + 1 })
   },
 
   logout() {
     auth.setToken(null)
     setTemporalIdentity(null)
+    limpiarCache()
     set({ usuario: null, estado: 'anonimo', sesionId: get().sesionId + 1 })
   },
 

@@ -94,6 +94,7 @@ function AppRoutes() {
             <Route path="/:username" element={<ProfilePage tab="publicaciones" />} />
             <Route path="/:username/reels" element={<ProfilePage tab="reels" />} />
             <Route path="/:username/albumes" element={<ProfilePage tab="albumes" />} />
+            <Route path="/:username/republicaciones" element={<ProfilePage tab="republicaciones" />} />
             <Route path="/:username/archivo" element={<ProfilePage tab="archivo" />} />
             <Route path="/:username/seguidores" element={<FollowListPage tipo="seguidores" />} />
             <Route path="/:username/seguidos" element={<FollowListPage tipo="seguidos" />} />

@@ -1,3 +1,4 @@
+import { decodificar } from '../../services/temporal/comentariosExtra'
 import { useEffect } from 'react'
 import { albumDeInvitacion } from '../../services/temporal/invitacionDm'
 import { Link } from 'react-router'
@@ -29,7 +30,7 @@ function Fila({ c, yoId, activa }: { c: Conversacion; yoId: number; activa: bool
   const sinLeer = c.no_leidos > 0
   let linea = 'Sin mensajes'
   if (um) {
-    const base = albumDeInvitacion(um.texto) !== null ? 'Invitación a un álbum compartido 📸' : (um.texto ?? 'Compartió una publicación')
+    const base = albumDeInvitacion(um.texto) !== null ? 'Invitación a un álbum compartido 📸' : previewTexto(um.texto)
     linea = um.emisor_id === yoId ? `Vos: ${base}` : base
   }
   return (
@@ -104,4 +105,13 @@ export function Inbox({
       </div>
     </div>
   )
+}
+
+/** Texto del último mensaje sin los tokens de respuesta/multimedia (TEMPORAL hueco 14). */
+function previewTexto(texto: string | null): string {
+  if (!texto) return 'Compartió una publicación'
+  const d = decodificar(texto)
+  const limpio = d.texto.replace(/​/g, '').trim()
+  if (limpio) return limpio
+  return d.media ? (d.media.tipo === 'sticker' ? 'Envió un sticker' : d.media.tipo === 'gif' ? 'Envió un GIF' : 'Envió una foto') : 'Mensaje'
 }

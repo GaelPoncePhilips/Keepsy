@@ -1,16 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { FollowButton } from '../../components/shared'
 import { Avatar } from '../../components/ui/Avatar'
+import { Ambient } from '../../components/ui/Ambient'
 import { Button } from '../../components/ui/Button'
 import { CenteredLoader, EmptyState, ErrorState } from '../../components/ui/Feedback'
 import { Icon } from '../../components/ui/Icon'
 import { IconButton } from '../../components/ui/IconButton'
+import { vibrar } from '../../lib/haptics'
 import { cn, useAsync, useInfinite, useIsMobile } from '../../lib/hooks'
 import { numeroCorto } from '../../lib/time'
 import { ApiError, mensajeDeError } from '../../services/client'
 import { darLike, obtenerPost, quitarLike, reelsFeed } from '../../services/posts'
 import { alternarGuardado, estaGuardado } from '../../services/temporal/local'
+import { useRepost } from '../post/PostCard'
 import { perfil } from '../../services/usuarios'
 import { useYo } from '../../stores/session'
 import { snackbar } from '../../stores/ui'
@@ -44,6 +47,18 @@ function Descripcion({ texto }: { texto: string }) {
   )
 }
 
+/** Relación con el autor, precargada para que "Seguir" esté desde el primer cuadro (no al terminar de bajar). */
+const cacheRelacion = new Map<string, Promise<{ relacion: Relacion; esPrivada: boolean }>>()
+function relacionDe(username: string) {
+  let p = cacheRelacion.get(username)
+  if (!p) {
+    p = perfil(username).then((x) => ({ relacion: x.relacion, esPrivada: x.es_privada }))
+    p.catch(() => cacheRelacion.delete(username))
+    cacheRelacion.set(username, p)
+  }
+  return p
+}
+
 function ReelItem({
   post,
   mobile,
@@ -72,6 +87,7 @@ function ReelItem({
   const [relacion, setRelacion] = useState<Relacion | null>(null)
   const [esPrivada, setEsPrivada] = useState<boolean | undefined>(undefined)
   const esMio = post.usuario_id === yo.id
+  const rep = useRepost(post)
 
   useEffect(() => {
     const el = raiz.current
@@ -96,21 +112,21 @@ function ReelItem({
     }
   }, [visible, pausado])
 
-  // Relación perezosa al volverse visible.
+  // Relación precargada al montar el reel: el botón Seguir ya está cuando llega la tarjeta.
   useEffect(() => {
-    if (!visible || esMio || relacion !== null) return
+    if (esMio || relacion !== null) return
     let vivo = true
-    perfil(post.autor_username)
-      .then((p) => {
+    relacionDe(post.autor_username)
+      .then((r) => {
         if (!vivo) return
-        setRelacion(p.relacion)
-        setEsPrivada(p.es_privada)
+        setRelacion(r.relacion)
+        setEsPrivada(r.esPrivada)
       })
       .catch(() => undefined)
     return () => {
       vivo = false
     }
-  }, [visible, esMio, relacion, post.autor_username])
+  }, [esMio, relacion, post.autor_username])
 
   useEffect(() => () => window.clearTimeout(timerTap.current), [])
 
@@ -118,6 +134,7 @@ function ReelItem({
     if (quiere === liked) return
     setLiked(quiere)
     setLikes((n) => n + (quiere ? 1 : -1))
+    vibrar(quiere ? 'click' : 'tick')
     try {
       if (quiere) await darLike(post.id)
       else await quitarLike(post.id)
@@ -165,6 +182,20 @@ function ReelItem({
         {contador(comentarios)}
       </div>
       <IconButton icon="send" label="Compartir" className={claseIcono} onClick={() => setCompartir(true)} />
+      {!esMio && (
+        <div className="flex flex-col items-center">
+          <IconButton
+            icon="repeat"
+            label={rep.republicado ? 'Quitar republicación' : 'Republicar'}
+            active={rep.republicado}
+            aria-pressed={rep.republicado}
+            className={rep.republicado ? 'text-primary-container' : claseIcono}
+            activeClassName="pop"
+            onClick={() => void rep.alternar()}
+          />
+          {rep.cantidad > 0 && contador(rep.cantidad)}
+        </div>
+      )}
       <IconButton
         icon="bookmark"
         label={guardado ? 'Quitar de guardados' : 'Guardar'}
@@ -214,9 +245,12 @@ function ReelItem({
               <Avatar username={post.autor_username} size={32} />
               <span className="type-label-l emphasized truncate">{post.autor_username}</span>
             </Link>
-            {!esMio && relacion !== null && relacion !== 'yo' && (
-              <FollowButton usuarioId={post.usuario_id} relacion={relacion} esPrivada={esPrivada} size="xs" onChange={setRelacion} />
-            )}
+            {!esMio &&
+              (relacion === null ? (
+                <span className="skeleton h-8 w-[76px] rounded-full opacity-60" aria-hidden="true" />
+              ) : (
+                relacion !== 'yo' && <FollowButton usuarioId={post.usuario_id} relacion={relacion} esPrivada={esPrivada} size="xs" onChange={setRelacion} />
+              ))}
           </div>
           {post.descripcion && <Descripcion texto={post.descripcion} />}
         </div>
@@ -226,9 +260,12 @@ function ReelItem({
   )
 
   return (
-    <section ref={raiz} aria-label={`Reel de ${post.autor_username}`} className="flex h-full snap-start snap-always items-center justify-center gap-4">
-      {tarjeta}
-      {!mobile && <div className="self-end pb-4">{acciones}</div>}
+    <section ref={raiz} aria-label={`Reel de ${post.autor_username}`} className="relative flex h-full snap-start snap-always items-center justify-center gap-4">
+      {!mobile && <Ambient src={post.url_imagen} active={visible} />}
+      <div className="relative z-10 flex items-center justify-center gap-4">
+        {tarjeta}
+        {!mobile && <div className="self-end pb-4">{acciones}</div>}
+      </div>
       <CommentsSheet
         postId={post.id}
         postOwnerId={post.usuario_id}
@@ -241,24 +278,63 @@ function ReelItem({
   )
 }
 
+/** Salir de los reels: vuelve atrás si hay historial; si no, al inicio. */
+function useVolver() {
+  const navigate = useNavigate()
+  return useCallback(() => {
+    if (window.history.length > 1) navigate(-1)
+    else navigate('/')
+  }, [navigate])
+}
+
 export function ReelsPage() {
   const yo = useYo()
   const { id } = useParams()
   const navigate = useNavigate()
+  const volver = useVolver()
   const mobile = useIsMobile()
+  const lista = useRef<HTMLDivElement>(null)
   const [muted, setMuted] = useState(true)
   const inicial = useAsync<Post | null>(async () => {
     if (!id) return null
-    try {
-      const p = await obtenerPost(Number(id))
-      return p.tipo === 'reel' ? p : null
-    } catch {
-      return null
+    // Un reintento: una falla de red puntual no debe mandar al usuario a otro reel.
+    for (let i = 0; i < 2; i++) {
+      try {
+        const p = await obtenerPost(Number(id))
+        return p.tipo === 'reel' ? p : null
+      } catch {
+        /* reintenta */
+      }
     }
+    return null
   }, [id])
   const { items, error, loading, done, reload, sentinelRef } = useInfinite((offset, limit) => reelsFeed(yo.id, { offset, limit }), [yo.id], 10)
 
-  if (error instanceof ApiError && error.status === 403 && items.length === 0) {
+  // ↑/↓ (y J/K) pasan al reel anterior/siguiente.
+  const saltar = useCallback((dir: 1 | -1) => {
+    const c = lista.current
+    if (!c) return
+    vibrar('tick')
+    c.scrollBy({ top: dir * c.clientHeight, behavior: 'smooth' })
+  }, [])
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+      const t = e.target
+      if (t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (document.body.style.overflow === 'hidden') return
+      if (e.key === 'ArrowDown' || e.key === 'j') saltar(1)
+      else if (e.key === 'ArrowUp' || e.key === 'k') saltar(-1)
+      else return
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [saltar])
+
+  const primero = inicial.data ?? null
+  // Con un reel concreto abierto (desde el perfil) se muestra aunque falle o esté vacío el feed recomendado.
+  if (!primero && error instanceof ApiError && error.status === 403 && items.length === 0) {
     return (
       <EmptyState
         icon="movie_off"
@@ -268,26 +344,44 @@ export function ReelsPage() {
       />
     )
   }
-  if (error && items.length === 0) return <ErrorState error={error} onRetry={reload} />
-  if ((loading && items.length === 0) || inicial.loading) return <CenteredLoader className="pt-24" />
+  if (!primero && error && items.length === 0) return <ErrorState error={error} onRetry={reload} />
+  if (inicial.loading || (!primero && loading && items.length === 0)) return <CenteredLoader className="pt-24" />
 
-  const primero = inicial.data ?? null
-  const lista = primero ? [primero, ...items.filter((p) => p.id !== primero.id)] : items
-  if (done && lista.length === 0) return <EmptyState icon="movie" title="No hay reels por ahora" text="Volvé más tarde para ver nuevos reels." />
+  const reels = primero ? [primero, ...items.filter((p) => p.id !== primero.id)] : items
+  if (done && reels.length === 0) return <EmptyState icon="movie" title="No hay reels por ahora" text="Volvé más tarde para ver nuevos reels." />
 
   return (
-    <div
-      className={cn(
-        'no-scrollbar snap-y snap-mandatory overflow-y-scroll overscroll-contain bg-black md:bg-transparent',
-        mobile ? 'h-[calc(100dvh-var(--nav-h)-env(safe-area-inset-bottom))]' : 'h-dvh',
+    <div className="relative">
+      <IconButton
+        icon="arrow_back"
+        label="Volver"
+        variant={mobile ? 'standard' : 'tonal'}
+        className={cn(
+          'fixed top-3 left-3 z-20',
+          mobile ? 'bg-black/35 text-white' : 'md:left-[calc(var(--sidebar-w-collapsed)+12px)] lg:left-[calc(var(--sidebar-w)+12px)]',
+        )}
+        onClick={volver}
+      />
+      {!mobile && (
+        <div className="fixed top-1/2 right-6 z-20 flex -translate-y-1/2 flex-col gap-3">
+          <IconButton icon="keyboard_arrow_up" label="Reel anterior" variant="tonal" onClick={() => saltar(-1)} />
+          <IconButton icon="keyboard_arrow_down" label="Reel siguiente" variant="tonal" onClick={() => saltar(1)} />
+        </div>
       )}
-    >
-      {lista.map((p) => (
-        <ReelItem key={p.id} post={p} mobile={mobile} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
-      ))}
-      <div ref={sentinelRef} aria-hidden="true" className="h-1" />
-      {loading && <CenteredLoader />}
-      {error && <ErrorState error={error} onRetry={reload} />}
+      <div
+        ref={lista}
+        className={cn(
+          'no-scrollbar snap-y snap-mandatory overflow-y-scroll overscroll-contain bg-black md:bg-transparent',
+          mobile ? 'h-[calc(100dvh-var(--nav-h)-env(safe-area-inset-bottom))]' : 'h-dvh',
+        )}
+      >
+        {reels.map((p) => (
+          <ReelItem key={p.id} post={p} mobile={mobile} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
+        ))}
+        <div ref={sentinelRef} aria-hidden="true" className="h-1" />
+        {loading && <CenteredLoader />}
+        {error && reels.length > 0 && <ErrorState error={error} onRetry={reload} />}
+      </div>
     </div>
   )
 }

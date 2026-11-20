@@ -98,3 +98,23 @@ No es un parche: las formas de respuesta se tomaron de los DTOs Pydantic (`backe
   - Propuesta para el backend: que `POST /albums/{id}/invitaciones` cree el DM en el mismo paso, con `Mensaje.album_id: int | null` (análogo a `post_id`). Respuesta de `GET /conversaciones/{id}/mensajes`: `{"id": 1, "conversacion_id": 3, "emisor_id": 7, "texto": null, "post_id": null, "album_id": 2, "fecha": "..."}`.
   - Cuando exista: borrar `invitacionDm.ts`, sacar la llamada en `invitar()` y leer `album_id` en `Burbuja.tsx`.
 
+
+## 13. Republicaciones
+
+- Flag: `VITE_TEMPORAL_REPOSTS`.
+- Falta: no hay forma de republicar un post/reel ni listar republicaciones.
+- Endpoints propuestos: `POST /posts/{id}/repost` y `DELETE /posts/{id}/repost` → `{"cantidad_reposts": 2, "me_republique": true}`; `GET /usuarios/{id}/reposts?limit&offset` → `Post[]` con `repostado_por` y `fecha_repost`; `GET /usuarios/{id}/feed/reposts` → republicaciones de las cuentas seguidas (el cliente las mezcla con el feed por fecha). `Post` suma `cantidad_reposts`, `me_republique`.
+- Mock: `src/mocks/temporal/handlers.ts` (+ tabla `reposts` en `mocks/db.ts`). Cliente: `src/services/temporal/index.ts`, `useRepost` en `features/post/PostCard.tsx`, pestaña "Republicaciones" del perfil.
+
+## 14. Respuestas y multimedia en comentarios y mensajes (y stickers / GIF)
+
+- Flag: `VITE_TEMPORAL_COMENTARIOS_EXTRA`.
+- Falta: el comentario/mensaje solo tiene `texto`. Propuesta: `comentario.respuesta_a` (id) y `comentario.media_url`/`media_tipo` (`imagen|gif|sticker`), idem en mensajes.
+- Hoy se codifican como tokens invisibles (U+2063) al final del texto (`services/temporal/comentariosExtra.ts`), así funciona también contra el backend real.
+- Imágenes: URL de objeto (hueco 4, vive mientras la pestaña esté abierta). GIF: ezgif.com no tiene API de búsqueda; se crea el GIF allí y se pega el enlace directo (`features/post/StickerPicker.tsx`). Stickers: emojis grandes.
+
+## 15. Likes y comentarios de ítems de álbum
+
+- Flag: `VITE_TEMPORAL_ALBUM_SOCIAL`.
+- Falta: `AlbumItem` no tiene likes ni comentarios. Hoy se guardan en `localStorage` (`services/temporal/albumSocial.ts`), solo visibles en ese dispositivo.
+- Propuesta: `POST|DELETE /albums/{id}/items/{item_id}/like`, `GET|POST /albums/{id}/items/{item_id}/comentarios`.

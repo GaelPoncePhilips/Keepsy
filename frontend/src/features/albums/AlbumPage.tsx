@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ScreenHeader } from '../../components/shared'
+import { Ambient } from '../../components/ui/Ambient'
 import { Avatar } from '../../components/ui/Avatar'
 import { Button, ButtonGroup } from '../../components/ui/Button'
 import { TextField } from '../../components/ui/Controls'
@@ -8,10 +9,19 @@ import { CenteredLoader, EmptyState, ErrorState } from '../../components/ui/Feed
 import { Icon } from '../../components/ui/Icon'
 import { IconButton } from '../../components/ui/IconButton'
 import { ActionMenu, Confirm, Dialog, Sheet, type MenuAction } from '../../components/ui/Overlay'
+import { vibrar } from '../../lib/haptics'
 import { useAsync, useIsMobile } from '../../lib/hooks'
 import { fechaLarga, tiempoLargo } from '../../lib/time'
 import * as albumsApi from '../../services/albums'
 import { ApiError, mensajeDeError } from '../../services/client'
+import { usuarioPorId } from '../../services/temporal'
+import {
+  alternarLikeItem,
+  borrarComentarioItem,
+  comentariosDeItem,
+  comentarItem,
+  likesDeItem,
+} from '../../services/temporal/albumSocial'
 import { useBadges } from '../../stores/badges'
 import { useYo } from '../../stores/session'
 import { snackbar } from '../../stores/ui'
@@ -19,6 +29,10 @@ import type { Album, AlbumItem, AlbumMiembro, UsuarioResumen } from '../../types
 import { MediaPicker, type MediaElegida } from '../create/MediaPicker'
 import { AvatarStack, contarMedia, miembrosAceptados, miRol, useAutor } from './common'
 import { FriendPicker } from './FriendPicker'
+import { CajaComentario, type FuenteComentarios } from '../post/comentarios'
+import { CommentsSheet } from '../post/CommentsSheet'
+import { LikesSheet } from '../post/LikesSheet'
+import { numeroCorto } from '../../lib/time'
 
 /**
  * Pantalla del álbum compartido: portada, título, descripción, fecha, participantes, acciones según rol
@@ -310,8 +324,35 @@ function ItemViewer({
   onClose: () => void
   onDeleted: () => void
 }) {
+  const yo = useYo()
   const autor = useAutor(item.usuario_id, miembros)
   const [confirm, setConfirm] = useState(false)
+  // TEMPORAL (hueco 15): los ítems se comportan como publicaciones (likes y comentarios locales).
+  const [likes, setLikes] = useState(() => likesDeItem(item.id))
+  const [comentariosN, setComentariosN] = useState(() => comentariosDeItem(item.id).length)
+  const [sheet, setSheet] = useState<'comentarios' | 'likes' | null>(null)
+  const [corazon, setCorazon] = useState(0)
+  const meGusta = likes.includes(yo.id)
+  const fuente = useMemo<FuenteComentarios>(
+    () => ({
+      listar: () => Promise.resolve(comentariosDeItem(item.id)),
+      comentar: (t) => Promise.resolve(comentarItem(item.id, yo, t)),
+      borrar: (id) => {
+        borrarComentarioItem(item.id, id)
+        return Promise.resolve()
+      },
+    }),
+    [item.id, yo],
+  )
+  const alternarLike = (forzar?: boolean) => {
+    if (forzar === true && meGusta) return
+    setLikes(alternarLikeItem(item.id, yo.id))
+    vibrar(meGusta && forzar !== true ? 'tick' : 'click')
+  }
+  const doble = () => {
+    setCorazon((n) => n + 1)
+    alternarLike(true)
+  }
   return (
     <Dialog open onClose={onClose} title={item.tipo === 'video' ? 'Video' : 'Foto'} width={720} fullscreenMobile>
       <div className="flex flex-col">
@@ -327,15 +368,73 @@ function ItemViewer({
           </div>
           {puedeBorrar && <IconButton icon="delete" label="Quitar del álbum" onClick={() => setConfirm(true)} />}
         </div>
-        <div className="flex items-center justify-center bg-black">
+        <div className="relative flex items-center justify-center overflow-hidden bg-black select-none" onDoubleClick={doble}>
+          <Ambient src={item.url_imagen} />
+          <div className="relative z-10 flex w-full items-center justify-center">
           {item.tipo === 'video' && item.url_video ? (
             <video src={item.url_video} poster={item.url_imagen} controls playsInline className="max-h-[70dvh] w-full" />
           ) : (
             <img src={item.url_imagen} alt={item.descripcion ?? `Foto de ${autor?.username ?? 'un participante'}`} className="max-h-[70dvh] w-full object-contain" />
           )}
+          </div>
+          {corazon > 0 && (
+            <span key={corazon} className="heart-pop pointer-events-none absolute inset-0 z-20 flex items-center justify-center text-white drop-shadow-lg">
+              <Icon name="favorite" fill size={110} />
+            </span>
+          )}
         </div>
-        {item.descripcion && <p className="type-body-m px-4 py-3">{item.descripcion}</p>}
+        <div className="px-1 pt-1">
+          <div className="flex items-center">
+            <IconButton
+              icon="favorite"
+              label={meGusta ? 'Ya no me gusta' : 'Me gusta'}
+              active={meGusta}
+              activeClassName="text-error pop"
+              aria-pressed={meGusta}
+              onClick={() => alternarLike()}
+            />
+            <IconButton icon="chat_bubble" label="Comentar" onClick={() => setSheet('comentarios')} />
+            <IconButton
+              icon="link"
+              label="Copiar enlace del álbum"
+              onClick={() =>
+                void navigator.clipboard
+                  .writeText(`${window.location.origin}/albumes/${item.album_id}`)
+                  .then(() => snackbar('Enlace del álbum copiado'))
+                  .catch(() => snackbar('No se pudo copiar el enlace'))
+              }
+            />
+          </div>
+        </div>
+        <div className="space-y-1 px-4 pb-3">
+          {likes.length > 0 && (
+            <button type="button" className="type-label-l emphasized font-semibold" onClick={() => setSheet('likes')}>
+              {numeroCorto(likes.length)} Me gusta
+            </button>
+          )}
+          {item.descripcion && <p className="type-body-m break-words">{item.descripcion}</p>}
+          {comentariosN > 0 && (
+            <button type="button" className="type-body-m block text-on-surface-variant" onClick={() => setSheet('comentarios')}>
+              {comentariosN === 1 ? 'Ver 1 comentario' : `Ver los ${numeroCorto(comentariosN)} comentarios`}
+            </button>
+          )}
+          <CajaComentario fuente={fuente} className="pt-1" onComentado={() => setComentariosN((n) => n + 1)} />
+        </div>
       </div>
+      <CommentsSheet
+        postId={item.id}
+        postOwnerId={item.usuario_id}
+        fuente={fuente}
+        open={sheet === 'comentarios'}
+        onClose={() => setSheet(null)}
+        onCountChange={(d) => setComentariosN((n) => Math.max(0, n + d))}
+      />
+      <LikesSheet
+        postId={item.id}
+        open={sheet === 'likes'}
+        onClose={() => setSheet(null)}
+        cargar={() => Promise.all(likes.map((id) => usuarioPorId(id)))}
+      />
       <Confirm
         open={confirm}
         title="¿Quitar del álbum?"

@@ -39,6 +39,14 @@ function SidePanel() {
   )
 }
 
+const RESERVADAS = new Set(['buscar', 'explorar', 'hashtags', 'reels', 'p', 'stories', 'destacadas', 'direct', 'notificaciones', 'crear', 'albumes', 'cuenta'])
+
+/** Entre pestañas de un mismo perfil la pantalla no se remonta: solo cambia el contenido de la pestaña. */
+function claveRuta(pathname: string): string {
+  const m = /^\/([^/]+)(?:\/(?:reels|albumes|republicaciones|archivo))?$/.exec(pathname)
+  return m && !RESERVADAS.has(m[1]) ? `/${m[1]}` : pathname
+}
+
 /** Marco de la app autenticada: barra lateral (≥768), barra inferior (<768), paneles, "Crear" y snackbars. */
 export function AppLayout() {
   const { pathname } = useLocation()
@@ -74,8 +82,10 @@ export function AppLayout() {
         )}
       >
         {esInicio && <MobileTopBar />}
-        <ErrorBoundary key={pathname}>
-          <Outlet />
+        <ErrorBoundary key={claveRuta(pathname)}>
+          <div key={claveRuta(pathname)} className={cn(!sinBarraInferior && 'anim-page')}>
+            <Outlet />
+          </div>
         </ErrorBoundary>
       </main>
       {!sinBarraInferior && <BottomNav />}

@@ -118,6 +118,12 @@ export interface Post {
   cantidad_comentarios: number
   me_gusta: boolean
   motivo?: string | null
+  /** TEMPORAL (hueco 13): republicaciones. */
+  cantidad_reposts?: number
+  me_republique?: boolean
+  /** TEMPORAL (hueco 13): quién lo republicó (solo en feed/perfil de republicaciones). */
+  repostado_por?: UsuarioResumen | null
+  fecha_repost?: ISODate | null
 }
 export interface CreatePostBody {
   tipo: TipoPost

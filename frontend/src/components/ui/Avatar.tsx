@@ -18,6 +18,8 @@ export function Avatar({ username, size = 32, anillo = 'ninguno', className, alt
   const [fallo, setFallo] = useState(false)
   const url = avatarUrl(username)
   const ring = anillo !== 'ninguno'
+  // Con historia el avatar pasa a squircle: más editorial/tech que el círculo clásico.
+  const forma = ring ? 'rounded-[34%]' : 'rounded-full'
   const grosor = size >= 56 ? 3 : 2
   const fondo =
     anillo === 'sin-ver'
@@ -29,7 +31,7 @@ export function Avatar({ username, size = 32, anillo = 'ninguno', className, alt
           : undefined
   const inner = (
     <span
-      className="block overflow-hidden rounded-full bg-surface-container-highest"
+      className={cn('block overflow-hidden bg-surface-container-highest', forma)}
       style={{ width: size, height: size }}
     >
       {url && !fallo ? (
@@ -57,10 +59,10 @@ export function Avatar({ username, size = 32, anillo = 'ninguno', className, alt
   if (!ring) return <span className={cn('inline-block shrink-0 rounded-full', className)}>{inner}</span>
   return (
     <span
-      className={cn('relative inline-block shrink-0 rounded-full', className)}
+      className={cn('relative inline-block shrink-0', forma, className)}
       style={{ padding: grosor, background: fondo }}
     >
-      <span className="block rounded-full bg-surface" style={{ padding: grosor }}>
+      <span className={cn('block bg-surface', forma)} style={{ padding: grosor }}>
         {inner}
       </span>
       {anillo === 'amigos' && size >= 40 && (

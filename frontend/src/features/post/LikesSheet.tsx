@@ -5,13 +5,25 @@ import { Sheet } from '../../components/ui/Overlay'
 import { useAsync } from '../../lib/hooks'
 import * as postsApi from '../../services/posts'
 import { useYo } from '../../stores/session'
+import type { UsuarioResumen } from '../../types/api'
 
 /** Lista de usuarios que dieron like. */
-export function LikesSheet({ postId, open, onClose }: { postId: number; open: boolean; onClose: () => void }) {
+export function LikesSheet({
+  postId,
+  open,
+  onClose,
+  cargar,
+}: {
+  postId: number
+  open: boolean
+  onClose: () => void
+  /** Fuente alternativa (ítems de álbum). */
+  cargar?: () => Promise<UsuarioResumen[]>
+}) {
   const yo = useYo()
   const { data, error, loading, reload } = useAsync(
-    () => (open ? postsApi.likesDePost(postId, { limit: 50 }) : Promise.resolve([])),
-    [postId, open],
+    () => (open ? (cargar ? cargar() : postsApi.likesDePost(postId, { limit: 50 })) : Promise.resolve([])),
+    [postId, open, cargar ? 'item' : 'post'],
   )
   return (
     <Sheet open={open} onClose={onClose} title="Me gusta">

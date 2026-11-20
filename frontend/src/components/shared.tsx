@@ -1,4 +1,5 @@
 /** Componentes de dominio compartidos entre features. */
+import { vibrar } from '../lib/haptics'
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { cn } from '../lib/hooks'
@@ -71,10 +72,12 @@ export function FollowButton({
         const s = await usuariosApi.seguir(usuarioId)
         const nuevo: Relacion = s.estado === 'aceptado' ? 'siguiendo' : 'pendiente'
         setRel(nuevo)
+        vibrar('exito')
         onChange?.(nuevo)
       } else {
         await usuariosApi.dejarDeSeguir(usuarioId)
         setRel('ninguna')
+        vibrar('tick')
         onChange?.('ninguna')
       }
     } catch (e) {
@@ -136,7 +139,7 @@ function GridTile({ post, aspect, linkState }: { post: Post; aspect: 'square' | 
   return (
     <Link
       to={to}
-      state={linkState}
+      state={to.startsWith('/p/') ? linkState : undefined}
       className="group relative block overflow-hidden rounded-xs bg-surface-container-highest"
       style={{ aspectRatio: aspect === 'reel' ? '9 / 16' : 'var(--grid-ratio)' }}
       aria-label={`Publicación de ${post.autor_username}${post.descripcion ? `: ${post.descripcion.slice(0, 60)}` : ''}`}
@@ -172,10 +175,27 @@ export function GridSkeleton({ n = 9, aspect = 'square' }: { n?: number; aspect?
       {Array.from({ length: n }, (_, i) => (
         <div
           key={i}
-          className={cn('animate-pulse rounded-xs bg-surface-container-high')}
+          className={cn('skeleton rounded-xs')}
           style={{ aspectRatio: aspect === 'reel' ? '9 / 16' : 'var(--grid-ratio)' }}
         />
       ))}
+    </div>
+  )
+}
+
+/** Esqueleto de una publicación del feed (mientras carga o al volver a la pantalla). */
+export function PostSkeleton() {
+  return (
+    <div className="border-b border-outline-variant pb-4" aria-hidden="true">
+      <div className="flex items-center gap-2.5 px-3 py-2 md:px-0">
+        <div className="skeleton size-8 rounded-full" />
+        <div className="skeleton h-3 w-32 rounded-full" />
+      </div>
+      <div className="skeleton aspect-square w-full md:rounded-xs" />
+      <div className="space-y-2 px-3 pt-3 md:px-0">
+        <div className="skeleton h-3 w-24 rounded-full" />
+        <div className="skeleton h-3 w-4/5 rounded-full" />
+      </div>
     </div>
   )
 }

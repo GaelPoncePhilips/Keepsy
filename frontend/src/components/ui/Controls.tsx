@@ -1,5 +1,6 @@
 import type { InputHTMLAttributes, ReactNode } from 'react'
 import { useId } from 'react'
+import { vibrar } from '../../lib/haptics'
 import { cn } from '../../lib/hooks'
 import { Icon } from './Icon'
 
@@ -28,7 +29,10 @@ export function Switch({ checked, onChange, label, description, disabled, icon =
         role="switch"
         aria-checked={checked}
         disabled={disabled}
-        onClick={() => onChange(!checked)}
+        onClick={() => {
+          vibrar(checked ? 'tick' : 'click')
+          onChange(!checked)
+        }}
         className={cn(
           'relative h-8 w-[52px] shrink-0 rounded-full border-2 transition-colors spring-effects',
           checked ? 'border-primary bg-primary' : 'border-outline bg-surface-container-highest',
@@ -52,6 +56,8 @@ export interface TabItem {
   id: string
   label: string
   icon: string
+  /** Color por función: republicaciones = primary, álbumes = tertiary. */
+  tone?: 'primary' | 'tertiary'
 }
 
 export function Tabs({ items, value, onChange, iconOnlyMobile }: { items: TabItem[]; value: string; onChange: (id: string) => void; iconOnlyMobile?: boolean }) {
@@ -69,14 +75,14 @@ export function Tabs({ items, value, onChange, iconOnlyMobile }: { items: TabIte
             onClick={() => onChange(t.id)}
             className={cn(
               'state relative flex h-12 flex-1 items-center justify-center gap-1.5 type-label-l uppercase tracking-wide',
-              sel ? 'text-on-surface' : 'text-on-surface-variant',
+              sel ? (t.tone === 'tertiary' ? 'text-tertiary' : t.tone === 'primary' ? 'text-primary' : 'text-on-surface') : 'text-on-surface-variant',
             )}
           >
             <Icon name={t.icon} fill={sel} size={iconOnlyMobile ? 24 : 18} />
             <span className={cn(iconOnlyMobile && 'hidden md:inline', sel && 'emphasized')}>{t.label}</span>
             <span
               className={cn(
-                'absolute top-0 left-1/2 h-[3px] -translate-x-1/2 rounded-b-full bg-on-surface transition-all spring-spatial-fast',
+                'absolute top-0 left-1/2 h-[3px] -translate-x-1/2 rounded-b-full bg-current transition-all spring-spatial-fast',
                 sel ? 'w-12' : 'w-0',
               )}
               aria-hidden="true"

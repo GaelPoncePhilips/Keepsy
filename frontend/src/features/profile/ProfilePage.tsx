@@ -10,7 +10,9 @@ import { Icon } from '../../components/ui/Icon'
 import { IconButton } from '../../components/ui/IconButton'
 import { ActionMenu, Confirm, type MenuAction } from '../../components/ui/Overlay'
 import { cn, useAsync, useIsMobile } from '../../lib/hooks'
+import { useTinte } from '../../lib/paleta'
 import { numeroCorto } from '../../lib/time'
+import { avatarUrl } from '../../services/temporal/local'
 import { ApiError, mensajeDeError } from '../../services/client'
 import { crearConversacion } from '../../services/dms'
 import * as storiesApi from '../../services/stories'
@@ -21,11 +23,11 @@ import type { Perfil, Relacion } from '../../types/api'
 import { AlbumsTab } from '../albums/AlbumsTab'
 import { HighlightsRow } from '../highlights/HighlightsRow'
 import { ProfileFab } from './ProfileFab'
-import { ArchivoTab, PostsTab, ReelsTab } from './ProfileTabs'
+import { ArchivoTab, PostsTab, ReelsTab, RepostsTab } from './ProfileTabs'
 
-export type ProfileTab = 'publicaciones' | 'reels' | 'albumes' | 'archivo'
+export type ProfileTab = 'publicaciones' | 'reels' | 'albumes' | 'republicaciones' | 'archivo'
 
-const RUTA: Record<ProfileTab, string> = { publicaciones: '', reels: '/reels', albumes: '/albumes', archivo: '/archivo' }
+const RUTA: Record<ProfileTab, string> = { publicaciones: '', reels: '/reels', albumes: '/albumes', republicaciones: '/republicaciones', archivo: '/archivo' }
 
 export function ProfilePage({ tab }: { tab: ProfileTab }) {
   const { username = '' } = useParams()
@@ -34,6 +36,7 @@ export function ProfilePage({ tab }: { tab: ProfileTab }) {
   const perfil = useAsync(() => usuariosApi.perfil(username), [username])
   const [bloqueado, setBloqueado] = useState<string | null>(null)
   const [destKey, setDestKey] = useState(0)
+  const tinte = useTinte(avatarUrl(username))
 
   if (bloqueado === username) return <NoDisponible />
   if (perfil.loading && !perfil.data) return <CenteredLoader className="py-24" />
@@ -50,13 +53,21 @@ export function ProfilePage({ tab }: { tab: ProfileTab }) {
   const items: TabItem[] = [
     { id: 'publicaciones', label: 'Publicaciones', icon: 'grid_on' },
     { id: 'reels', label: 'Reels', icon: 'movie' },
-    { id: 'albumes', label: 'Álbumes', icon: 'photo_album' },
+    { id: 'albumes', label: 'Álbumes', icon: 'photo_album', tone: 'tertiary' },
+    { id: 'republicaciones', label: 'Republicaciones', icon: 'repeat', tone: 'primary' },
     ...(esPropio ? [{ id: 'archivo', label: 'Archivo', icon: 'history' }] : []),
   ]
   const tabActual: ProfileTab = tab === 'archivo' && !esPropio ? 'publicaciones' : tab
 
   return (
-    <div className="mx-auto w-full max-w-[935px] pb-8">
+    <div className="relative isolate mx-auto w-full max-w-[935px] pb-8">
+      {tinte && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 transition-opacity duration-700"
+          style={{ background: `radial-gradient(120% 100% at 50% 0%, color-mix(in oklab, ${tinte} 30%, transparent), transparent 70%)` }}
+        />
+      )}
       <Encabezado
         key={p.id}
         p={p}
@@ -79,10 +90,11 @@ export function ProfilePage({ tab }: { tab: ProfileTab }) {
           <div className="border-t border-outline-variant/60">
             <Tabs items={items} value={tabActual} onChange={(id) => navigate(`/${p.username}${RUTA[id as ProfileTab]}`)} iconOnlyMobile />
           </div>
-          <div className="pt-[2px]">
+          <div key={tabActual} className="anim-fade-in pt-[2px]">
             {tabActual === 'publicaciones' && <PostsTab usuarioId={p.id} esPropio={esPropio} />}
             {tabActual === 'reels' && <ReelsTab usuarioId={p.id} esPropio={esPropio} />}
             {tabActual === 'albumes' && <AlbumsTab usuarioId={p.id} esPropio={esPropio} />}
+            {tabActual === 'republicaciones' && <RepostsTab usuarioId={p.id} esPropio={esPropio} />}
             {tabActual === 'archivo' && <ArchivoTab usuarioId={p.id} onDestacada={() => setDestKey((k) => k + 1)} />}
           </div>
           {esPropio && <ProfileFab tab={tabActual} />}
@@ -111,7 +123,7 @@ function Privada() {
 function Contador({ n, label, to }: { n: number; label: string; to?: string }) {
   const contenido = (
     <>
-      <span className="emphasized">{numeroCorto(n)}</span> <span className="max-md:block max-md:text-on-surface-variant">{label}</span>
+      <span className="num">{numeroCorto(n)}</span> <span className="max-md:block max-md:text-on-surface-variant">{label}</span>
     </>
   )
   const cls = 'type-body-l max-md:text-center max-md:type-body-m'

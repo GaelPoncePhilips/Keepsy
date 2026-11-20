@@ -13,7 +13,9 @@ import { useBadges } from '../../stores/badges'
 import { useYo } from '../../stores/session'
 import { snackbar } from '../../stores/ui'
 import type { Album, Mensaje, Post, UsuarioResumen } from '../../types/api'
+import { decodificar } from '../../services/temporal/comentariosExtra'
 import { AvatarStack } from '../albums/common'
+import { MediaAdjunta } from '../post/comentarios'
 
 // Caché de posts compartidos (null = no disponible).
 const cachePosts = new Map<number, Promise<Post | null>>()
@@ -181,6 +183,8 @@ export function Burbuja({ m, mio, emisor, grupal, conPrev, conNext, isMobile, on
       : {}
   const mostrarAvatar = grupal && !mio && !conNext
   const invitacion = albumDeInvitacion(m.texto)
+  const { texto: textoLimpio, media } = decodificar(m.texto ?? '')
+  const textoVisible = textoLimpio.replace(/\u200b/g, '')
   return (
     <div className={cn('group flex items-end gap-2', mio ? 'justify-end' : 'justify-start', conPrev ? 'mt-0.5' : 'mt-2')}>
       {!mio && grupal && (
@@ -199,7 +203,12 @@ export function Burbuja({ m, mio, emisor, grupal, conPrev, conNext, isMobile, on
             <InvitacionAlbumCard albumId={invitacion} mio={mio} />
           </div>
         )}
-        {m.texto && invitacion === null && (
+        {media && invitacion === null && (
+          <div {...pressProps} className={cn(m.post_id !== null && 'mt-0.5')}>
+            <MediaAdjunta media={media} className="max-w-[240px]" />
+          </div>
+        )}
+        {textoVisible && invitacion === null && (
           <div
             {...pressProps}
             style={{ borderRadius: radio }}
@@ -209,7 +218,7 @@ export function Burbuja({ m, mio, emisor, grupal, conPrev, conNext, isMobile, on
               mio ? 'bg-primary text-on-primary' : 'bg-surface-container-highest text-on-surface',
             )}
           >
-            {m.texto}
+            {textoVisible}
           </div>
         )}
       </div>

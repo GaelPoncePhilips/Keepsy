@@ -7,14 +7,17 @@ import { Icon } from '../../components/ui/Icon'
 import { ActionMenu, Confirm, type MenuAction } from '../../components/ui/Overlay'
 import { cn, useIsMobile } from '../../lib/hooks'
 import { numeroCorto, tiempoCorto } from '../../lib/time'
+import { vibrar } from '../../lib/haptics'
 import { mensajeDeError } from '../../services/client'
 import * as postsApi from '../../services/posts'
 import { alternarGuardado, estaGuardado } from '../../services/temporal/local'
+import { quitarRepublicacion, republicar } from '../../services/temporal'
+import { decodificar } from '../../services/temporal/comentariosExtra'
 import * as usuariosApi from '../../services/usuarios'
 import { useYo } from '../../stores/session'
 import { snackbar } from '../../stores/ui'
 import type { Comentario, Post } from '../../types/api'
-import { CajaComentario } from './comentarios'
+import { CajaComentario, MediaAdjunta } from './comentarios'
 import { CommentsSheet } from './CommentsSheet'
 import { LikesSheet } from './LikesSheet'
 import { RichText } from './RichText'
@@ -49,6 +52,7 @@ export function useLike(post: Post) {
     const prev = { meGusta, likes }
     setMeGusta(valor)
     setLikes((n) => n + (valor ? 1 : -1))
+    vibrar(valor ? 'click' : 'tick')
     try {
       if (valor) {
         const p = await postsApi.darLike(post.id)
@@ -65,6 +69,34 @@ export function useLike(post: Post) {
     }
   }
   return { meGusta, likes, set }
+}
+
+/** TEMPORAL (hueco 13): republicar con estado optimista. */
+export function useRepost(post: Post) {
+  const [republicado, setRepublicado] = useState(post.me_republique ?? false)
+  const [cantidad, setCantidad] = useState(post.cantidad_reposts ?? 0)
+  const busy = useRef(false)
+  const alternar = async () => {
+    if (busy.current) return
+    busy.current = true
+    const quiere = !republicado
+    setRepublicado(quiere)
+    setCantidad((n) => Math.max(0, n + (quiere ? 1 : -1)))
+    vibrar(quiere ? 'exito' : 'tick')
+    try {
+      const r = quiere ? await republicar(post.id) : await quitarRepublicacion(post.id)
+      setRepublicado(r.me_republique)
+      setCantidad(r.cantidad_reposts)
+      snackbar(quiere ? 'Republicado en tu perfil' : 'Quitaste la republicación')
+    } catch (e) {
+      setRepublicado(!quiere)
+      setCantidad((n) => Math.max(0, n + (quiere ? -1 : 1)))
+      snackbar(mensajeDeError(e))
+    } finally {
+      busy.current = false
+    }
+  }
+  return { republicado, cantidad, alternar }
 }
 
 /** Media del post (imagen o video de reel) con doble tap = like. */
@@ -102,7 +134,7 @@ export function PostMedia({ post, onDoubleLike, fill }: { post: Post; onDoubleLi
 
   return (
     <div
-      className={cn('relative w-full overflow-hidden bg-surface-container-highest select-none', fill && 'h-full bg-black')}
+      className={cn('relative w-full overflow-hidden bg-surface-container-highest select-none', fill && 'h-full bg-transparent')}
       style={fill ? undefined : { aspectRatio: aspectoDe(post.url_imagen) }}
       onDoubleClick={doble}
       onPointerUp={onPointerUp}
@@ -223,6 +255,8 @@ export function PostActions({
   onComment: () => void
   onShare: () => void
 }) {
+  const yo = useYo()
+  const rep = useRepost(post)
   const [guardado, setGuardado] = useState(() => estaGuardado(post.id))
   return (
     <div className="flex items-center">
@@ -236,6 +270,19 @@ export function PostActions({
       />
       <IconButton icon="chat_bubble" label="Comentar" onClick={onComment} />
       <IconButton icon="send" label="Compartir" onClick={onShare} />
+      {post.usuario_id !== yo.id && (
+        <span className="flex items-center">
+          <IconButton
+            icon="repeat"
+            label={rep.republicado ? 'Quitar republicación' : 'Republicar'}
+            active={rep.republicado}
+            activeClassName="text-primary pop"
+            aria-pressed={rep.republicado}
+            onClick={() => void rep.alternar()}
+          />
+          {rep.cantidad > 0 && <span className="type-label-m -ml-2 text-on-surface-variant">{numeroCorto(rep.cantidad)}</span>}
+        </span>
+      )}
       <span className="flex-1" />
       <IconButton
         icon="bookmark"
@@ -271,7 +318,20 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
   const larga = desc.length > LIMITE_DESCRIPCION
 
   return (
-    <article className="border-b border-outline-variant pb-4 md:mb-2" aria-label={`Publicación de ${post.autor_username}`}>
+    <article
+      data-feed-post
+      className="scroll-mt-[64px] border-b border-outline-variant pb-4 md:mb-2 md:scroll-mt-4"
+      aria-label={`Publicación de ${post.autor_username}`}
+    >
+      {post.repostado_por && (
+        <p className="type-label-m flex items-center gap-1.5 px-3 pt-2 text-on-surface-variant md:px-0">
+          <Icon name="repeat" size={16} />
+          <Link to={`/${post.repostado_por.username}`} className="emphasized">
+            {post.repostado_por.username}
+          </Link>
+          republicó
+        </p>
+      )}
       <header className="flex items-center gap-2.5 px-3 py-2 md:px-0">
         <Link to={`/${post.autor_username}`} className="shrink-0">
           <Avatar username={post.autor_username} size={32} />
@@ -323,12 +383,18 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
             {comentariosN === 1 ? 'Ver 1 comentario' : `Ver los ${numeroCorto(comentariosN)} comentarios`}
           </button>
         )}
-        {misComentarios.map((c) => (
-          <p key={c.id} className="type-body-m break-words">
-            <span className="emphasized mr-1.5 font-semibold">{c.autor_username}</span>
-            <RichText text={c.texto} />
-          </p>
-        ))}
+        {misComentarios.map((c) => {
+          const d = decodificar(c.texto)
+          return (
+            <div key={c.id} className="anim-fade-in">
+              <p className="type-body-m break-words">
+                <span className="emphasized mr-1.5 font-semibold">{c.autor_username}</span>
+                <RichText text={d.texto.replace(/\u200b/g, '')} />
+              </p>
+              {d.media && <MediaAdjunta media={d.media} className="mt-1" />}
+            </div>
+          )
+        })}
         <CajaComentario
           postId={post.id}
           onComentado={(c) => {

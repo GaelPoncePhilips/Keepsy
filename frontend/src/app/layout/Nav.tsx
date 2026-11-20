@@ -39,6 +39,12 @@ export function BottomNav() {
       aria-label="Navegación principal"
       className="barra-fija fixed inset-x-0 bottom-0 z-30 border-t border-outline-variant bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
     >
+      {/* Indicador que se desliza entre pestañas con resorte */}
+      <span
+        aria-hidden="true"
+        className={cn('absolute top-0 h-[3px] w-7 rounded-b-full bg-primary transition-[left,opacity] spring-spatial', activo ? 'opacity-100' : 'opacity-0')}
+        style={{ left: `calc(${(Math.max(0, MOBILE_TABS.indexOf(activo ?? MOBILE_TABS[0])) + 0.5) * (100 / MOBILE_TABS.length)}% - 14px)` }}
+      />
       <ul className="flex h-[var(--nav-h)] items-stretch justify-around">
         {MOBILE_TABS.map((id) => {
           const on = activo === id
@@ -56,7 +62,9 @@ export function BottomNav() {
                     <Avatar username={yo.username} size={24} alt="" />
                   </span>
                 ) : (
-                  <Icon name={ICONOS[id]} fill={on} size={26} />
+                  <span key={String(on)} className={on ? 'select-pop' : undefined}>
+                    <Icon name={ICONOS[id]} fill={on} size={26} />
+                  </span>
                 )}
               </button>
             </li>

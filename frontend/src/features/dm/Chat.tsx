@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router'
 import { Avatar } from '../../components/ui/Avatar'
 import { Button, ButtonGroup } from '../../components/ui/Button'
 import { CenteredLoader, EmptyState, ErrorState } from '../../components/ui/Feedback'
+import { Icon } from '../../components/ui/Icon'
 import { IconButton } from '../../components/ui/IconButton'
 import { ActionMenu, Confirm } from '../../components/ui/Overlay'
+import { vibrar } from '../../lib/haptics'
 import { useAsync } from '../../lib/hooks'
 import { etiquetaDia, horaCorta } from '../../lib/time'
 import { mensajeDeError } from '../../services/client'
@@ -18,11 +20,14 @@ import {
   salirDeConversacion,
   solicitudesDeMensaje,
 } from '../../services/dms'
+import { codificar, type MediaComentario } from '../../services/temporal/comentariosExtra'
 import { perfil } from '../../services/usuarios'
 import { useYo } from '../../stores/session'
 import { useBadges } from '../../stores/badges'
 import { snackbar } from '../../stores/ui'
 import type { Conversacion, Mensaje } from '../../types/api'
+import { MediaAdjunta } from '../post/comentarios'
+import { StickerPicker } from '../post/StickerPicker'
 import { Burbuja } from './Burbuja'
 import { esStatus, nombreConversacion, otros } from './util'
 
@@ -72,6 +77,8 @@ function ChatView({
   const yo = useYo()
   const navigate = useNavigate()
   const [msgs, setMsgs] = useState<Mensaje[]>([])
+  const [media, setMedia] = useState<MediaComentario | null>(null)
+  const [stickers, setStickers] = useState(false)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [fin, setFin] = useState(false)
@@ -195,13 +202,15 @@ function ChatView({
 
   const enviar = async () => {
     const t = texto.trim()
-    if (!t || enviando || bloqueado) return
+    if ((!t && !media) || enviando || bloqueado) return
     setEnviando(true)
     try {
-      const m = await enviarMensaje(conv.id, { texto: t })
+      const m = await enviarMensaje(conv.id, { texto: codificar(t || '\u200b', { media }) })
       pendiente.current = { tipo: 'fondo' }
       setMsgs((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]))
       setTexto('')
+      setMedia(null)
+      vibrar('click')
       onActividad()
     } catch (e) {
       if (esStatus(e, 403, 404)) setBloqueado(true)
@@ -353,6 +362,7 @@ function ChatView({
           No podés responder a esta conversación.
         </p>
       ) : (
+        <>
         <form
           className="flex shrink-0 items-center gap-2 px-4 py-3"
           onSubmit={(e) => {
@@ -369,13 +379,29 @@ function ChatView({
               maxLength={1000}
               className="type-body-l h-11 min-w-0 flex-1 bg-transparent outline-none placeholder:text-on-surface-variant"
             />
-            {texto.trim() && (
+            <IconButton icon="sticker" label="Stickers y GIFs" size={20} onClick={() => setStickers(true)} />
+            {(texto.trim() || media) && (
               <button type="submit" disabled={enviando} className="state rounded-full px-3 py-1 type-label-l emphasized text-primary disabled:opacity-50">
                 Enviar
               </button>
             )}
           </div>
         </form>
+        {media && (
+          <div className="anim-scale-in relative mx-4 mb-2 -mt-1 w-fit">
+            <MediaAdjunta media={media} className="max-h-24" />
+            <button
+              type="button"
+              aria-label="Quitar adjunto"
+              className="absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full bg-inverse-surface text-inverse-on-surface"
+              onClick={() => setMedia(null)}
+            >
+              <Icon name="close" size={14} />
+            </button>
+          </div>
+        )}
+        <StickerPicker open={stickers} onClose={() => setStickers(false)} onElegir={setMedia} />
+        </>
       )}
 
       <ActionMenu open={menuMsg !== null} onClose={() => setMenuMsg(null)} actions={accionesMsg} />

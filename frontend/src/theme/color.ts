@@ -46,4 +46,23 @@ export function aplicarTema(tema: Tema): void {
   const root = document.documentElement
   if (tema === 'sistema') root.removeAttribute('data-tema')
   else root.setAttribute('data-tema', tema)
+  sincronizarBarras()
+}
+
+/**
+ * Barra de estado y de navegación del sistema (PWA instalada): mismo color que el fondo de la app.
+ * El <meta theme-color> se actualiza con el valor real de --md-sys-color-surface del tema activo.
+ */
+export function sincronizarBarras(): void {
+  const color = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-surface').trim()
+  if (!color) return
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.remove())
+  const meta = document.createElement('meta')
+  meta.name = 'theme-color'
+  meta.content = color
+  document.head.appendChild(meta)
+}
+
+export function vigilarEsquemaSistema(): void {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', sincronizarBarras)
 }
