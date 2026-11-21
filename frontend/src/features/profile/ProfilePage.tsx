@@ -1,4 +1,5 @@
 /** Perfil (HU1, HU3, HU4) con destacadas, pestañas y archivo de stories. */
+import { navegarConZoom } from '../../lib/transicion'
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { FollowButton } from '../../components/shared'
@@ -213,7 +214,7 @@ function Encabezado({
     <button
       type="button"
       disabled={vigentes.length === 0}
-      onClick={() => navigate(`/stories/${p.id}`)}
+      onClick={() => navegarConZoom(navigate, `/stories/${p.id}`)}
       aria-label={vigentes.length ? `Ver stories de ${p.username}` : `Foto de perfil de ${p.username}`}
       className="shrink-0 rounded-full disabled:cursor-default"
     >

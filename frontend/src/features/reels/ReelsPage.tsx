@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { navegarConZoom } from '../../lib/transicion'
 import { Link, useNavigate, useParams } from 'react-router'
 import { FollowButton } from '../../components/shared'
 import { Avatar } from '../../components/ui/Avatar'
@@ -282,7 +283,7 @@ function ReelItem({
 function useVolver() {
   const navigate = useNavigate()
   return useCallback(() => {
-    if (window.history.length > 1) navigate(-1)
+    if (window.history.length > 1) navegarConZoom(navigate, -1)
     else navigate('/')
   }, [navigate])
 }

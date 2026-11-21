@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { Avatar } from '../../components/ui/Avatar'
 import { Icon } from '../../components/ui/Icon'
@@ -8,6 +8,8 @@ import { useYo } from '../../stores/session'
 import { useUi } from '../../stores/ui'
 import { DevSwitcherDialog } from './DevSwitcher'
 import { MoreMenu } from './MoreMenu'
+import { NavBlob } from './NavBlob'
+import { RadialCreate } from './RadialCreate'
 import { activoDesdeRuta, DESKTOP_ITEMS, ICONOS, LABELS, MOBILE_TABS, RUTAS, type NavId } from './navItems'
 
 function Wordmark({ className }: { className?: string }) {
@@ -19,94 +21,67 @@ export function Logo({ size = 28 }: { size?: number }) {
 }
 
 /**
- * Barra inferior móvil, idéntica en estructura a Instagram: 5 íconos sin texto, activo = relleno,
- * Perfil = avatar con anillo. Fondo surface, borde superior 1px, 50px + safe-area.
+ * Barra inferior móvil (diseño de Figma): 5 destinos con ícono + etiqueta. El activo no lleva píldora:
+ * la gota del blob lo envuelve y el foco principal de luz nace de su ícono. "Crear" abre el menú radial.
  */
 export function BottomNav() {
   const yo = useYo()
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const setCrear = useUi((s) => s.setCrear)
   const panel = useUi((s) => s.panel)
   const activo = panel ? null : activoDesdeRuta(pathname, yo.username)
   const click = (id: NavId) => {
-    if (id === 'crear') setCrear(true)
-    else if (id === 'perfil') navigate(`/${yo.username}`)
+    if (id === 'perfil') navigate(`/${yo.username}`)
     else navigate(RUTAS[id] ?? '/')
   }
+  // Fuera de una pestaña (p. ej. /p/123) la gota se queda donde estaba.
+  const ultimo = useRef(0)
+  const i = activo ? MOBILE_TABS.indexOf(activo) : -1
+  if (i >= 0) ultimo.current = i
   return (
-    <nav
-      aria-label="Navegación principal"
-      className="barra-fija fixed inset-x-0 bottom-0 z-30 border-t border-outline-variant bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
-    >
-      {/* Indicador metaball: dos píldoras con resortes distintos; al viajar se estiran y se fusionan */}
-      <span aria-hidden="true" className="goo-sm pointer-events-none absolute inset-x-0 top-[9px] h-8">
-        {[0, 1].map((k) => (
-          <span
-            key={k}
-            className={cn('absolute top-0 h-8 w-14 rounded-full bg-primary-container transition-[left,opacity]', activo ? 'opacity-100' : 'opacity-0')}
-            style={{
-              left: `calc(${(Math.max(0, MOBILE_TABS.indexOf(activo ?? MOBILE_TABS[0])) + 0.5) * (100 / MOBILE_TABS.length)}% - 28px)`,
-              transitionTimingFunction: k === 0 ? 'var(--md-motion-spatial-fast-easing, ease-out)' : 'var(--md-motion-spatial-slow-easing, ease-out)',
-              transitionDuration: k === 0 ? 'var(--md-motion-spatial-fast-duration, 200ms)' : 'var(--md-motion-spatial-slow-duration, 500ms)',
-            }}
-          />
-        ))}
-      </span>
-      <ul className="relative z-10 flex h-[var(--nav-h)] items-stretch justify-around">
-        {MOBILE_TABS.map((id) => {
-          const on = activo === id
-          return (
-            <li key={id} className="flex flex-1 justify-center">
-              <button
-                type="button"
-                aria-label={LABELS[id]}
-                aria-current={on ? 'page' : undefined}
-                onClick={() => click(id)}
-                className={cn('flex h-full min-w-12 flex-1 items-center justify-center transition-colors', on && id !== 'perfil' && 'text-on-primary-container')}
-              >
-                {id === 'perfil' ? (
-                  <span className={cn('rounded-full p-[2px]', on ? 'ring-2 ring-on-surface' : '')}>
-                    <Avatar username={yo.username} size={24} alt="" />
-                  </span>
-                ) : (
-                  <span key={String(on)} className={on ? 'select-pop' : undefined}>
-                    <Icon name={ICONOS[id]} fill={on} size={26} />
-                  </span>
-                )}
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-    </nav>
-  )
-}
-
-/** Barra superior móvil (solo en Inicio): wordmark + corazón (punto) + avión (contador). */
-export function MobileTopBar() {
-  const notifs = useBadges((s) => s.notificaciones)
-  const msgs = useBadges((s) => s.mensajes)
-  return (
-    <header className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-outline-variant/40 bg-surface px-4 md:hidden">
-      <Link to="/" aria-label="Keepsy, inicio" className="flex items-center gap-2">
-        <Wordmark />
-      </Link>
-      <div className="flex items-center gap-1">
-        <Link to="/notificaciones" aria-label={`Notificaciones${notifs ? `, ${notifs} sin leer` : ''}`} className="relative flex size-11 items-center justify-center">
-          <Icon name="favorite" size={26} />
-          {notifs > 0 && <span className="absolute top-2 right-2 size-2.5 rounded-full bg-error ring-2 ring-surface" />}
-        </Link>
-        <Link to="/direct" aria-label={`Mensajes${msgs ? `, ${msgs} sin leer` : ''}`} className="relative flex size-11 items-center justify-center">
-          <Icon name="send" size={26} />
-          {msgs > 0 && (
-            <span className="absolute top-1 right-0 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-error px-1 text-on-error type-label-s ring-2 ring-surface">
-              {msgs > 9 ? '9+' : msgs}
-            </span>
-          )}
-        </Link>
-      </div>
-    </header>
+    <>
+      {/* Fondo sólido de la barra; la gota del blob se dibuja encima y los íconos encima de ella */}
+      <div id="nav-barra-fondo" aria-hidden="true" className="barra-fija fixed inset-x-0 bottom-0 z-30 h-[calc(var(--nav-h)+env(safe-area-inset-bottom))] rounded-t-[28px] bg-surface-container md:hidden" />
+      <NavBlob index={ultimo.current} count={MOBILE_TABS.length} lamina={!pathname.startsWith('/reels')} />
+      <nav aria-label="Navegación principal" className="barra-fija fixed inset-x-0 bottom-0 z-[32] pb-[env(safe-area-inset-bottom)] md:hidden">
+        <ul className="relative z-10 flex h-[var(--nav-h)] items-stretch justify-around">
+          {MOBILE_TABS.map((id) => {
+            const on = activo === id
+            if (id === 'crear')
+              return (
+                <li key={id} className="flex flex-1 justify-center">
+                  <RadialCreate label={LABELS[id]} />
+                </li>
+              )
+            return (
+              <li key={id} className="flex flex-1 justify-center">
+                <button
+                  type="button"
+                  aria-label={LABELS[id]}
+                  aria-current={on ? 'page' : undefined}
+                  onClick={() => click(id)}
+                  className={cn(
+                    'nav-dest flex h-full min-w-12 flex-1 flex-col items-center justify-center gap-1 transition-colors',
+                    on ? 'text-on-surface' : 'text-on-surface-variant',
+                  )}
+                >
+                  {id === 'perfil' ? (
+                    <span className={cn('rounded-full p-[2px]', on ? 'ring-2 ring-on-surface' : '')}>
+                      <Avatar username={yo.username} size={24} alt="" />
+                    </span>
+                  ) : (
+                    <span key={String(on)} className={on ? 'select-pop' : undefined}>
+                      <Icon name={ICONOS[id]} fill={on} size={26} />
+                    </span>
+                  )}
+                  <span className={cn('type-label-s', on ? 'font-bold text-on-surface' : '')}>{LABELS[id]}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
+    </>
   )
 }
 

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { navegarConZoom } from '../../lib/transicion'
 import { useNavigate } from 'react-router'
 import { ScreenHeader } from '../../components/shared'
 import { Button } from '../../components/ui/Button'
@@ -31,7 +32,7 @@ export function CreateStoryPage() {
     <div className="mx-auto w-full max-w-[420px] pb-8">
       <ScreenHeader
         title="Nueva story"
-        onBack={() => navigate(-1)}
+        onBack={() => navegarConZoom(navigate, -1)}
         action={
           <Button size="sm" disabled={!media || busy} onClick={() => void compartir()}>
             Compartir

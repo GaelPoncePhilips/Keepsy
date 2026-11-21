@@ -1,4 +1,5 @@
 /** Listas de cuenta: no me siguen, solicitudes (HU3), mejores amigos (HU8) y bloqueados (HU10). */
+import { navegarConZoom } from '../../lib/transicion'
 import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { FollowButton, ScreenHeader, UserRow } from '../../components/shared'
@@ -20,7 +21,7 @@ function Pantalla({ title, children }: { title: string; children: ReactNode }) {
   const navigate = useNavigate()
   return (
     <div className="mx-auto w-full max-w-[600px] pb-10">
-      <ScreenHeader title={title} onBack={() => navigate('/cuenta/ajustes')} />
+      <ScreenHeader title={title} onBack={() => navegarConZoom(navigate, '/cuenta/ajustes', { atras: true })} />
       {children}
     </div>
   )

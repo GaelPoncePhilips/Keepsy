@@ -1,4 +1,5 @@
 /** Ajustes estilo M3: privacidad, reels, accesos y tema. */
+import { navegarConZoom } from '../../lib/transicion'
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { DevSwitcherDialog } from '../../app/layout/DevSwitcher'
@@ -71,7 +72,7 @@ export function SettingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-[600px] pb-10">
-      <ScreenHeader title="Configuración" onBack={() => navigate(`/${yo.username}`)} />
+      <ScreenHeader title="Configuración" onBack={() => navegarConZoom(navigate, `/${yo.username}`, { atras: true })} />
       <Link to="/cuenta/editar" className="state mx-4 mt-4 flex items-center gap-4 rounded-lg bg-surface-container p-4">
         <Avatar username={yo.username} size={56} />
         <span className="min-w-0 flex-1">

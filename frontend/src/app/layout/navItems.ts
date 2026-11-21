@@ -34,7 +34,7 @@ export function activoDesdeRuta(pathname: string, username: string): NavId | nul
   if (pathname.startsWith('/reels')) return 'reels'
   if (pathname.startsWith('/direct')) return 'mensajes'
   if (pathname.startsWith('/notificaciones')) return 'notificaciones'
-  if (pathname.startsWith('/crear')) return 'crear'
+  if (pathname.startsWith('/crear') || pathname === '/albumes/nuevo') return 'crear'
   const seg = pathname.split('/')[1]
   if (seg === username || pathname.startsWith('/cuenta')) return 'perfil'
   return null

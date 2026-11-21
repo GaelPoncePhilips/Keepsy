@@ -1,7 +1,8 @@
 /** Componentes de dominio compartidos entre features. */
 import { vibrar } from '../lib/haptics'
 import { useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
+import { clicConZoom } from '../lib/transicion'
 import { cn } from '../lib/hooks'
 import { numeroCorto } from '../lib/time'
 import { mensajeDeError } from '../services/client'
@@ -135,11 +136,13 @@ export function PostGrid({
 }
 
 function GridTile({ post, aspect, linkState }: { post: Post; aspect: 'square' | 'reel'; linkState?: unknown }) {
+  const navigate = useNavigate()
   const to = post.tipo === 'reel' && aspect === 'reel' ? `/reels/${post.id}` : `/p/${post.id}`
   return (
     <Link
       to={to}
       state={to.startsWith('/p/') ? linkState : undefined}
+      onClick={clicConZoom(navigate, to, { state: to.startsWith('/p/') ? linkState : undefined })}
       className="group relative block overflow-hidden rounded-xs bg-surface-container-highest"
       style={{ aspectRatio: aspect === 'reel' ? '9 / 16' : 'var(--grid-ratio)' }}
       aria-label={`Publicación de ${post.autor_username}${post.descripcion ? `: ${post.descripcion.slice(0, 60)}` : ''}`}

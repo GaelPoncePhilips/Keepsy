@@ -1,7 +1,8 @@
-import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { Avatar } from '../../components/ui/Avatar'
+import { navegarConZoom } from '../../lib/transicion'
+import { HuecoPost } from './HuecoPost'
 import { IconButton } from '../../components/ui/IconButton'
 import { Icon } from '../../components/ui/Icon'
 import { ActionMenu, Confirm, type MenuAction } from '../../components/ui/Overlay'
@@ -100,7 +101,7 @@ export function useRepost(post: Post) {
 }
 
 /** Media del post (imagen o video de reel) con doble tap = like. */
-export function PostMedia({ post, onDoubleLike, fill }: { post: Post; onDoubleLike: () => void; fill?: boolean }) {
+export function PostMedia({ post, onDoubleLike, onOpen, fill }: { post: Post; onDoubleLike: () => void; onOpen?: () => void; fill?: boolean }) {
   const [corazon, setCorazon] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const ultimoTap = useRef(0)
@@ -123,21 +124,26 @@ export function PostMedia({ post, onDoubleLike, fill }: { post: Post; onDoubleLi
     setCorazon((n) => n + 1)
     onDoubleLike()
   }
-  const onPointerUp = (e: ReactPointerEvent) => {
-    if (e.pointerType === 'mouse') return
+  // Un toque abre la publicación (si hay onOpen); dos toques seguidos dan like y cancelan la apertura.
+  const timerAbrir = useRef(0)
+  useEffect(() => () => window.clearTimeout(timerAbrir.current), [])
+  const onClick = () => {
     const ahora = Date.now()
     if (ahora - ultimoTap.current < 300) {
-      doble()
+      window.clearTimeout(timerAbrir.current)
       ultimoTap.current = 0
-    } else ultimoTap.current = ahora
+      doble()
+      return
+    }
+    ultimoTap.current = ahora
+    if (onOpen) timerAbrir.current = window.setTimeout(onOpen, 300)
   }
 
   return (
     <div
       className={cn('relative w-full overflow-hidden bg-surface-container-highest select-none', fill && 'h-full bg-transparent')}
       style={fill ? undefined : { aspectRatio: aspectoDe(post.url_imagen) }}
-      onDoubleClick={doble}
-      onPointerUp={onPointerUp}
+      onClick={onClick}
     >
       {post.tipo === 'reel' && post.url_video ? (
         <video
@@ -310,6 +316,10 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
   const [expandida, setExpandida] = useState(false)
   const [sheet, setSheet] = useState<'comentarios' | 'likes' | 'compartir' | null>(null)
 
+  const abrirPost = () => {
+    if (isMobile) navegarConZoom(navigate, `/p/${post.id}`)
+    else navigate(`/p/${post.id}`, { state: { background: location } })
+  }
   const abrirComentarios = () => {
     if (isMobile) setSheet('comentarios')
     else navigate(`/p/${post.id}`, { state: { background: location } })
@@ -320,7 +330,7 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
   return (
     <article
       data-feed-post
-      className="scroll-mt-[64px] border-b border-outline-variant pb-4 md:mb-2 md:scroll-mt-4"
+      className="mb-4 scroll-mt-[64px] pb-2 md:mb-2 md:scroll-mt-4 md:border-b md:border-outline-variant md:pb-4"
       aria-label={`Publicación de ${post.autor_username}`}
     >
       {post.repostado_por && (
@@ -332,22 +342,47 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
           republicó
         </p>
       )}
-      <header className="flex items-center gap-2.5 px-3 py-2 md:px-0">
-        <Link to={`/${post.autor_username}`} className="shrink-0">
-          <Avatar username={post.autor_username} size={32} />
-        </Link>
-        <p className="type-label-l min-w-0 flex-1 truncate">
-          <Link to={`/${post.autor_username}`} className="emphasized font-semibold">
-            {post.autor_username}
-          </Link>
-          <span className="text-on-surface-variant"> • {tiempoCorto(post.fecha_publicacion)}</span>
-        </p>
-        <PostMenu post={post} onDeleted={onDeleted} onBlocked={onDeleted} />
-      </header>
-
-      <div className="md:overflow-hidden md:rounded-xs">
-        <PostMedia post={post} onDoubleLike={() => void set(true)} />
-      </div>
+      {isMobile ? (
+        <HuecoPost
+          fondo={post.url_imagen}
+          avatar={
+            <Link to={`/${post.autor_username}`} aria-label={`Perfil de ${post.autor_username}`}>
+              <Avatar username={post.autor_username} size={54} alt="" />
+            </Link>
+          }
+          encabezado={
+            <>
+              <p className="min-w-0 flex-1">
+                <Link to={`/${post.autor_username}`} className="type-title-s emphasized block truncate font-semibold">
+                  {post.autor_username}
+                </Link>
+                <span className="type-body-s block text-on-surface-variant">{tiempoCorto(post.fecha_publicacion)}</span>
+              </p>
+              <PostMenu post={post} onDeleted={onDeleted} onBlocked={onDeleted} />
+            </>
+          }
+        >
+          <PostMedia post={post} onDoubleLike={() => void set(true)} onOpen={abrirPost} />
+        </HuecoPost>
+      ) : (
+        <>
+          <header className="flex items-center gap-2.5 py-2">
+            <Link to={`/${post.autor_username}`} className="shrink-0">
+              <Avatar username={post.autor_username} size={32} />
+            </Link>
+            <p className="type-label-l min-w-0 flex-1 truncate">
+              <Link to={`/${post.autor_username}`} className="emphasized font-semibold">
+                {post.autor_username}
+              </Link>
+              <span className="text-on-surface-variant"> • {tiempoCorto(post.fecha_publicacion)}</span>
+            </p>
+            <PostMenu post={post} onDeleted={onDeleted} onBlocked={onDeleted} />
+          </header>
+          <div className="overflow-hidden rounded-xs">
+            <PostMedia post={post} onDoubleLike={() => void set(true)} onOpen={abrirPost} />
+          </div>
+        </>
+      )}
 
       <div className="px-1 pt-1 md:px-0">
         <PostActions

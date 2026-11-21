@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { clicConZoom } from '../../lib/transicion'
 import { Button, ButtonGroup } from '../../components/ui/Button'
 import { EmptyState, ErrorState } from '../../components/ui/Feedback'
 import { Icon } from '../../components/ui/Icon'
@@ -92,6 +93,7 @@ export function AlbumsTab({ usuarioId, esPropio }: { usuarioId: number; esPropio
 
 function AlbumCard({ album, items, pendiente, onRespondida }: AlbumConItems & { onRespondida: (aceptada: boolean) => void }) {
   const yo = useYo()
+  const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
   const miembros = miembrosAceptados(album)
   const portada = album.portada_url ?? items[0]?.url_imagen ?? null
@@ -115,6 +117,7 @@ function AlbumCard({ album, items, pendiente, onRespondida }: AlbumConItems & { 
     <div>
       <Link
         to={`/albumes/${album.id}`}
+        onClick={clicConZoom(navigate, `/albumes/${album.id}`)}
         className={cn('group relative block aspect-square overflow-hidden rounded-xs bg-surface-container-high', pendiente && 'ring-2 ring-primary ring-offset-2 ring-offset-surface')}
         aria-label={`Álbum ${album.titulo}`}
       >

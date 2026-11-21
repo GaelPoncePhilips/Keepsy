@@ -24,7 +24,9 @@ Leé antes de escribir: `../docs/API.md` (contrato), `../docs/DISENO.md` (decisi
 - Íconos: `<Icon name="..." fill={activo} />` (Material Symbols Rounded).
 
 ## Estilos prohibidos
-Masonry/mosaico, tarjetas flotantes en el feed (el post va plano sobre `surface`, separado por espacio/borde fino), estética de dashboard, degradé magenta-naranja-amarillo, logo/fuente de Instagram, fondos crema, etiquetas de sección numeradas, etiquetas monoespaciadas, glassmorphism, barra de navegación de Material (píldora + etiquetas).
+Masonry/mosaico, tarjetas flotantes en el feed (el post va plano sobre `surface`, separado por espacio/borde fino), estética de dashboard, degradé magenta-naranja-amarillo, logo/fuente de Instagram, fondos crema, etiquetas de sección numeradas, etiquetas monoespaciadas, barra de navegación de Material con píldora.
+
+**Excepción decidida por el dueño (diseño de Figma):** en móvil la pantalla es una lámina-blob de vidrio propio (`NavBlob`: tinte + highlights + focos de luz de `stores/luces.ts`, sin backdrop-filter) con huecos para fotos y stories (`HuecoPost`, `lib/formasM3.ts`); la barra inferior lleva ícono + etiqueta y el activo lo envuelve la gota del blob (sin píldora). "Crear" en móvil es un menú radial (`RadialCreate`). No revertir.
 
 ## Huecos temporales
 Cualquier parche que inventes: marcado `// TEMPORAL`, aislado en `src/services/temporal/` o `src/mocks/temporal/`, con flag `VITE_TEMPORAL_<NOMBRE>` en `src/config/env.ts`, y avisalo en tu reporte final para documentarlo en `docs/TEMPORAL.md`. Los que ya existen están en `src/services/temporal/` (notificaciones, búsqueda, usuarioPorId, avatar, guardados, subida de archivos, cuentas dev).

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { navegarConZoom } from '../../lib/transicion'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ScreenHeader } from '../../components/shared'
 import { Avatar } from '../../components/ui/Avatar'
@@ -190,7 +191,7 @@ export function PostPage() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const { data, error, loading, reload } = usePost()
-  const salir = () => navigate(-1)
+  const salir = () => navegarConZoom(navigate, -1)
   return (
     <div className="mx-auto w-full max-w-[935px] md:px-4 md:py-6">
       {isMobile && <ScreenHeader title="Publicación" onBack={salir} />}
@@ -214,7 +215,7 @@ export function PostModal() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const { data, error, loading, reload } = usePost()
-  const cerrar = () => navigate(-1)
+  const cerrar = () => navegarConZoom(navigate, -1)
   if (isMobile) {
     return (
       <div className="fixed inset-0 z-40 overflow-y-auto bg-surface">

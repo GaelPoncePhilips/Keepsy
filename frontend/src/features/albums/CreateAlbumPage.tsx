@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { navegarConZoom } from '../../lib/transicion'
 import { useNavigate } from 'react-router'
 import { ScreenHeader } from '../../components/shared'
 import { Avatar } from '../../components/ui/Avatar'
@@ -34,7 +35,7 @@ export function CreateAlbumPage() {
   const [creando, setCreando] = useState(false)
 
   const puedeSeguir = paso !== 0 || titulo.trim().length > 0
-  const atras = () => (paso === 0 ? navigate(-1) : setPaso(paso - 1))
+  const atras = () => (paso === 0 ? navegarConZoom(navigate, -1) : setPaso(paso - 1))
 
   const crear = async () => {
     setCreando(true)
@@ -127,7 +128,7 @@ export function CreateAlbumPage() {
           </div>
         )}
       </div>
-      <div className="sticky bottom-[calc(var(--nav-h)+env(safe-area-inset-bottom))] flex gap-3 border-t border-outline-variant/60 bg-surface px-4 py-3 md:bottom-0">
+      <div className="sticky bottom-[calc(var(--nav-h)+env(safe-area-inset-bottom))] flex gap-3 px-4 py-3 md:bottom-0 md:border-t md:border-outline-variant/60 md:bg-surface">
         {paso === 1 && !portada && (
           <Button variant="text" onClick={() => setPaso(2)}>
             Omitir

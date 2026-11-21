@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router'
 import { BlobBackdrop, BlobIcon } from '../../components/ui/Blobs'
 import { Icon } from '../../components/ui/Icon'
-import { Dialog, Sheet } from '../../components/ui/Overlay'
+import { Dialog } from '../../components/ui/Overlay'
 import { vibrar } from '../../lib/haptics'
 import { cn, useIsMobile } from '../../lib/hooks'
 import { useUi } from '../../stores/ui'
@@ -43,7 +43,7 @@ function Opciones({ onIr }: { onIr: (to: string) => void }) {
 }
 
 /**
- * Selector "Crear": una ventana real. Móvil: bottom sheet (se arrastra para cerrar); escritorio: diálogo.
+ * Selector "Crear" de escritorio: diálogo. En móvil lo reemplaza el menú radial de la barra inferior.
  * Mismo contenido en ambos: cuatro tiles-mancha que se deforman al tocarlos.
  */
 export function CreateMenu() {
@@ -56,13 +56,8 @@ export function CreateMenu() {
     cerrar()
     navigate(to)
   }
-  if (isMobile) {
-    return (
-      <Sheet open={abierto} onClose={cerrar} title="Crear">
-        <Opciones onIr={ir} />
-      </Sheet>
-    )
-  }
+  // Móvil: el menú radial vive en el botón de la barra inferior (RadialCreate).
+  if (isMobile) return null
   return (
     <Dialog open={abierto} onClose={cerrar} title="Crear" width={440}>
       <Opciones onIr={ir} />

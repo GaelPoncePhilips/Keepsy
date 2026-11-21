@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { navegarConZoom } from '../../lib/transicion'
 import { useNavigate } from 'react-router'
 import { ScreenHeader } from '../../components/shared'
 import { TextField } from '../../components/ui/Controls'
@@ -55,7 +56,7 @@ export function CreateForm({
     <div>
       <ScreenHeader
         title={titulo}
-        onBack={mobile ? () => navigate(-1) : undefined}
+        onBack={mobile ? () => navegarConZoom(navigate, -1) : undefined}
         action={
           <button
             type="button"

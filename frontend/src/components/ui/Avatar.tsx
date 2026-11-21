@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { radioBlob } from '../../lib/blob'
 import { cn } from '../../lib/hooks'
 import { avatarUrl } from '../../services/temporal/local'
 
@@ -22,8 +23,9 @@ export function Avatar({ username, size = 32, anillo = 'ninguno', className, alt
   const url = avatarUrl(username)
   const ring = anillo !== 'ninguno'
   // Con historia el avatar pasa a squircle: más editorial/tech que el círculo clásico.
-  const forma = ring ? '' : 'rounded-full'
-  const clip = ring ? { clipPath: COOKIE } : undefined
+  // Sin historia: mancha propia de cada usuario (siempre la misma).
+  const forma = ''
+  const clip = ring ? { clipPath: COOKIE } : { borderRadius: radioBlob(username, 0.5) }
   const grosor = size >= 56 ? 3 : 2
   const fondo =
     anillo === 'sin-ver'
@@ -60,7 +62,7 @@ export function Avatar({ username, size = 32, anillo = 'ninguno', className, alt
       )}
     </span>
   )
-  if (!ring) return <span className={cn('inline-block shrink-0 rounded-full', className)}>{inner}</span>
+  if (!ring) return <span className={cn('inline-block shrink-0', className)}>{inner}</span>
   return (
     <span
       className={cn('relative inline-block shrink-0', forma, className)}

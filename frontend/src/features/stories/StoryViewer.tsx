@@ -1,4 +1,5 @@
 import type { PointerEvent as ReactPointerEvent } from 'react'
+import { navegarConZoom } from '../../lib/transicion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { UserRow } from '../../components/shared'
@@ -63,7 +64,7 @@ export function StoryViewerPage({ modo }: { modo: 'usuario' | 'destacada' }) {
   const yoResumen: UsuarioResumen = { id: yo.id, username: yo.username, nombre: yo.nombre }
   const { data, error, loading, reload } = useAsync(() => cargarCola(modo, param, yoResumen), [modo, param, yo.id])
   const cerrar = useCallback(() => {
-    if (window.history.length > 1) navigate(-1)
+    if (window.history.length > 1) navegarConZoom(navigate, -1)
     else navigate('/')
   }, [navigate])
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { navegarConZoom } from '../../lib/transicion'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ScreenHeader } from '../../components/shared'
 import { Ambient } from '../../components/ui/Ambient'
@@ -57,7 +58,7 @@ export function AlbumPage() {
     const st = album.error instanceof ApiError ? album.error.status : 0
     return (
       <div className="mx-auto max-w-[935px]">
-        <ScreenHeader title="Álbum" onBack={() => navigate(-1)} />
+        <ScreenHeader title="Álbum" onBack={() => navegarConZoom(navigate, -1)} />
         {st === 403 ? (
           <EmptyState icon="lock" title="No tenés acceso a este álbum" text="Lo ven sus participantes y quienes siguen a alguno de ellos." />
         ) : st === 404 ? (
@@ -117,7 +118,7 @@ export function AlbumPage() {
     <div className="mx-auto w-full max-w-[935px] pb-10">
       <ScreenHeader
         title={a.titulo}
-        onBack={() => navigate(-1)}
+        onBack={() => navegarConZoom(navigate, -1)}
         action={<IconButton icon="more_horiz" label="Opciones del álbum" onClick={() => setMenu(true)} />}
       />
 

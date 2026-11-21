@@ -1,4 +1,5 @@
 /** Editar perfil (HU1). */
+import { navegarConZoom } from '../../lib/transicion'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ScreenHeader } from '../../components/shared'
@@ -35,7 +36,7 @@ export function EditProfilePage() {
 
   return (
     <div className="mx-auto w-full max-w-[600px] pb-10">
-      <ScreenHeader title="Editar perfil" onBack={() => navigate(`/${yo.username}`)} />
+      <ScreenHeader title="Editar perfil" onBack={() => navegarConZoom(navigate, `/${yo.username}`, { atras: true })} />
       <div className="flex flex-col gap-6 px-4 pt-6">
         <div className="flex items-center gap-4 rounded-lg bg-surface-container p-4">
           <Avatar username={yo.username} size={56} />

@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router'
+import { navegarConZoom } from '../../lib/transicion'
 import { useLocation } from 'react-router'
 import { GridSkeleton, PostGrid, ScreenHeader } from '../../components/shared'
 import { EmptyState, ErrorState, LoadingShape } from '../../components/ui/Feedback'
@@ -16,7 +17,7 @@ export function HashtagPage() {
 
   return (
     <div>
-      {mobile && <ScreenHeader title={`#${nombre}`} onBack={() => navigate(-1)} />}
+      {mobile && <ScreenHeader title={`#${nombre}`} onBack={() => navegarConZoom(navigate, -1)} />}
       <div className="mx-auto w-full max-w-[935px] md:px-4 md:py-6">
         <header className="flex items-center gap-4 px-4 py-5 md:gap-8 md:px-0">
           <span

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Outlet, useLocation } from 'react-router'
 import { ErrorBoundary } from '../../components/ErrorBoundary'
 import { GooFilters } from '../../components/ui/Blobs'
@@ -10,7 +10,8 @@ import { cn, useEscape } from '../../lib/hooks'
 import { useBadges } from '../../stores/badges'
 import { useUi } from '../../stores/ui'
 import { CreateMenu } from './CreateMenu'
-import { BottomNav, MobileTopBar, SideNav } from './Nav'
+import { BottomNav, SideNav } from './Nav'
+import { MobileTopBar } from './TopBar'
 
 /** Panel deslizable de escritorio (Buscar / Notificaciones), como Instagram web. */
 function SidePanel() {
@@ -67,25 +68,29 @@ export function AppLayout() {
     void refrescar()
   }, [pathname, refrescar, setPanel])
 
+  // Sentido del zoom leído una vez por página (useMemo por ruta): si cambiara después, la animación se repetiría.
+  const clave = claveRuta(pathname)
+  const dirAlMontar = useMemo(() => (clave ? document.documentElement.dataset.dir : undefined), [clave])
   const esInicio = pathname === '/'
   const sinBarraInferior = pathname.startsWith('/direct/') || pathname.startsWith('/stories') || pathname.startsWith('/destacadas')
   const colapsada = panel !== null || pathname.startsWith('/direct')
 
   return (
-    <div className="min-h-svh bg-surface">
+    <div className="min-h-svh md:bg-surface">
       <GooFilters />
       <SideNav />
       <SidePanel />
       <main
+        id="contenido-blob"
         className={cn(
-          'min-h-svh md:pl-[var(--sidebar-w-collapsed)]',
+          'relative z-10 min-h-svh md:pl-[var(--sidebar-w-collapsed)]',
           !colapsada && 'lg:pl-[var(--sidebar-w)]',
           !sinBarraInferior && 'pb-[calc(var(--nav-h)+env(safe-area-inset-bottom))] md:pb-0',
         )}
       >
         {esInicio && <MobileTopBar />}
         <ErrorBoundary key={claveRuta(pathname)}>
-          <div key={claveRuta(pathname)} className={cn(!sinBarraInferior && 'anim-page')}>
+          <div key={claveRuta(pathname)} className={cn(!sinBarraInferior && 'anim-page', !sinBarraInferior && dirAlMontar === 'atras' && 'anim-page-atras')}>
             <Outlet />
           </div>
         </ErrorBoundary>

@@ -65,7 +65,7 @@ export function Dialog({ open, onClose, title, children, width = 400, className,
         aria-label={title ? undefined : 'Diálogo'}
         className={cn(
           'relative flex max-h-full flex-col overflow-hidden bg-surface-container-high text-on-surface outline-none',
-          full ? 'anim-slide-up size-full' : 'anim-scale-in mx-4 max-h-[90dvh] w-full rounded-xl',
+          full ? 'anim-scale-in size-full' : 'anim-scale-in mx-4 max-h-[90dvh] w-full rounded-xl',
           className,
         )}
         style={full ? undefined : { maxWidth: width }}
@@ -238,7 +238,7 @@ export function Sheet({ open, onClose, title, children, side = 'auto', hideTitle
           dy === 0 && 'transition-transform spring-spatial',
           bottom
             ? 'anim-slide-up inset-x-0 bottom-0 max-h-[85dvh] rounded-t-xl pb-[env(safe-area-inset-bottom)]'
-            : 'anim-slide-right inset-y-0 right-0 w-[400px] max-w-full rounded-l-xl',
+            : 'anim-slide-right origin-right inset-y-0 right-0 w-[400px] max-w-full rounded-l-xl',
         )}
       >
         {bottom && (
