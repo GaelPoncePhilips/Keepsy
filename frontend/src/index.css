@@ -52,7 +52,10 @@
 }
 
 :root {
-  --keepsy-amigos: #1faf5a;
+  /* Paleta de marca */
+  --keepsy-amigos: #e3746e;
+  --keepsy-nav-icono: #ecc457;
+  --keepsy-logo: #a72720;
   --nav-h: 50px;
   --feed-w: 470px;
   --grid-ratio: 1 / 1;
@@ -63,11 +66,11 @@
   --bar-bg: var(--md-sys-color-surface);
 }
 :root[data-tema='oscuro'] {
-  --keepsy-amigos: #4ade80;
+  --keepsy-logo: #d12c23;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-tema='claro']) {
-    --keepsy-amigos: #4ade80;
+    --keepsy-logo: #d12c23;
   }
 }
 @media (max-width: 767px) {
@@ -199,6 +202,7 @@ select:focus-visible {
   letter-spacing: -0.01em;
 }
 @utility wordmark {
+  color: var(--keepsy-logo);
   font-weight: 800;
   font-variation-settings: 'wdth' 125, 'opsz' 144;
   letter-spacing: -0.02em;

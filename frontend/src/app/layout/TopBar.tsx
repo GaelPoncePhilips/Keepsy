@@ -15,7 +15,7 @@ export function MobileTopBar() {
     >
       <div className="flex h-[60px] items-center justify-between pr-4 pl-5">
         <Link to="/" aria-label="Keepsy, inicio" className="flex items-center">
-          <span className="wordmark text-[28px] leading-none text-on-surface">keepsy</span>
+          <span className="wordmark text-[28px] leading-none">keepsy</span>
         </Link>
         <div className="flex items-center gap-2">
           <Link

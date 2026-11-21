@@ -13,7 +13,7 @@ import { RadialCreate } from './RadialCreate'
 import { activoDesdeRuta, DESKTOP_ITEMS, ICONOS, LABELS, MOBILE_TABS, RUTAS, type NavId } from './navItems'
 
 function Wordmark({ className }: { className?: string }) {
-  return <span className={cn('wordmark text-[28px] leading-none text-on-surface', className)}>keepsy</span>
+  return <span className={cn('wordmark text-[28px] leading-none', className)}>keepsy</span>
 }
 
 export function Logo({ size = 28 }: { size?: number }) {
@@ -71,7 +71,7 @@ export function BottomNav() {
                     </span>
                   ) : (
                     <span key={String(on)} className={on ? 'select-pop' : undefined}>
-                      <Icon name={ICONOS[id]} fill={on} size={26} />
+                      <Icon name={ICONOS[id]} fill={on} size={26} className={on ? 'text-[var(--keepsy-nav-icono)]' : 'text-[color-mix(in_srgb,var(--keepsy-nav-icono)_70%,transparent)]'} />
                     </span>
                   )}
                   <span className={cn('type-label-s', on ? 'font-bold text-on-surface' : '')}>{LABELS[id]}</span>

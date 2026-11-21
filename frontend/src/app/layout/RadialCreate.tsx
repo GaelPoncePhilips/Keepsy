@@ -174,7 +174,7 @@ export function RadialCreate({ label }: { label: string }) {
         className="radial-trigger flex h-full min-w-12 flex-1 flex-col items-center justify-center gap-1 text-on-surface-variant"
       >
         <span className={cn('radial-trigger-icon', abierto && 'is-open')}>
-          <Icon name="add" size={26} />
+          <Icon name="add" size={26} className="text-[color-mix(in_srgb,var(--keepsy-nav-icono)_70%,transparent)]" />
         </span>
         <span className="type-label-s">{label}</span>
       </button>

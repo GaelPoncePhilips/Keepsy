@@ -5,17 +5,18 @@
 import {
   Hct,
   MaterialDynamicColors,
-  SchemeExpressive,
+  SchemeTonalSpot,
   argbFromHex,
   hexFromArgb,
 } from '@material/material-color-utilities'
 
-export const SEED = '#3D5AFE'
+/** Rojo de marca. Tonal Spot da superficies cálidas y tranquilas (Expressive viraba a marrón + cian). */
+export const SEED = '#D12C23'
 
 export type Tema = 'claro' | 'oscuro' | 'sistema'
 
 function schemeCss(dark: boolean): string {
-  const scheme = new SchemeExpressive(Hct.fromInt(argbFromHex(SEED)), dark, 0, '2025')
+  const scheme = new SchemeTonalSpot(Hct.fromInt(argbFromHex(SEED)), dark, 0, '2025')
   const mdc = new MaterialDynamicColors()
   const lines: string[] = []
   for (const color of mdc.allColors) {
