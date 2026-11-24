@@ -1,12 +1,15 @@
 import type { PointerEvent as ReactPointerEvent } from 'react'
+import { navegarConZoom } from '../../lib/transicion'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import { UserRow } from '../../components/shared'
+import { Ambient } from '../../components/ui/Ambient'
 import { Avatar } from '../../components/ui/Avatar'
 import { CenteredLoader, EmptyState, ErrorState } from '../../components/ui/Feedback'
 import { Icon } from '../../components/ui/Icon'
 import { IconButton } from '../../components/ui/IconButton'
 import { ActionMenu, Confirm, Sheet } from '../../components/ui/Overlay'
+import { vibrar } from '../../lib/haptics'
 import { cn, useAsync, useIsDesktop } from '../../lib/hooks'
 import { tiempoCorto } from '../../lib/time'
 import { ApiError, mensajeDeError } from '../../services/client'
@@ -61,7 +64,7 @@ export function StoryViewerPage({ modo }: { modo: 'usuario' | 'destacada' }) {
   const yoResumen: UsuarioResumen = { id: yo.id, username: yo.username, nombre: yo.nombre }
   const { data, error, loading, reload } = useAsync(() => cargarCola(modo, param, yoResumen), [modo, param, yo.id])
   const cerrar = useCallback(() => {
-    if (window.history.length > 1) navigate(-1)
+    if (window.history.length > 1) navegarConZoom(navigate, -1)
     else navigate('/')
   }, [navigate])
 
@@ -184,6 +187,7 @@ function Visor({ cola, onCerrar }: { cola: Cola; onCerrar: () => void }) {
       setPausaPress(false)
       return
     }
+    vibrar('tick')
     const r = e.currentTarget.getBoundingClientRect()
     if (e.clientX - r.left < r.width / 3) anterior()
     else siguiente()
@@ -219,9 +223,11 @@ function Visor({ cola, onCerrar }: { cola: Cola; onCerrar: () => void }) {
   if (!grupo || !story) return null
 
   return (
-    <div className="flex h-full w-full items-center justify-center gap-4">
+    <div className="relative flex h-full w-full items-center justify-center gap-4">
+      {isDesktop && <Ambient src={story.url_imagen} />}
       {isDesktop && (
         <IconButton
+          className="relative z-10"
           icon="chevron_left"
           label="Anterior"
           variant="tonal"
@@ -231,7 +237,7 @@ function Visor({ cola, onCerrar }: { cola: Cola; onCerrar: () => void }) {
       )}
       <div
         className={cn(
-          'relative overflow-hidden bg-neutral-900',
+          'relative z-10 overflow-hidden bg-neutral-900',
           isDesktop ? 'aspect-[9/16] h-[92vh] rounded-md' : 'h-full w-full md:aspect-[9/16] md:h-[92vh] md:w-auto md:rounded-md',
         )}
       >
@@ -273,13 +279,23 @@ function Visor({ cola, onCerrar }: { cola: Cola; onCerrar: () => void }) {
             ))}
           </div>
           <div className="pointer-events-auto mt-3 flex items-center gap-2">
-            <Avatar username={grupo.usuario.username} size={32} />
-            <span className="type-label-l emphasized">{grupo.usuario.username}</span>
+            <Link
+              to={`/${grupo.usuario.username}`}
+              aria-label={`Ir al perfil de ${grupo.usuario.username}`}
+              className="flex min-w-0 items-center gap-2 text-white"
+            >
+              <Avatar username={grupo.usuario.username} size={32} />
+              <span className="type-label-l emphasized truncate">{grupo.usuario.username}</span>
+            </Link>
             <span className="type-label-m text-white/75">{tiempoCorto(story.fecha_publicacion)}</span>
             {story.solo_mejores_amigos && (
-              <span className="type-label-s flex items-center gap-1 rounded-full bg-amigos px-2 py-0.5 text-white">
-                <Icon name="crown" fill size={12} />
-                Mejores amigos
+              <span
+                className="flex size-6 items-center justify-center rounded-full bg-amigos text-white"
+                role="img"
+                aria-label="Mejores amigos"
+                title="Mejores amigos"
+              >
+                <Icon name="crown" fill size={14} />
               </span>
             )}
             <span className="flex-1" />
@@ -308,6 +324,7 @@ function Visor({ cola, onCerrar }: { cola: Cola; onCerrar: () => void }) {
       </div>
       {isDesktop && (
         <IconButton
+          className="relative z-10"
           icon="chevron_right"
           label="Siguiente"
           variant="tonal"

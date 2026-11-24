@@ -1,6 +1,8 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { vibrar } from '../../lib/haptics'
 import { cn, useEscape, useIsMobile } from '../../lib/hooks'
+import { usePresencia } from '../../lib/usePresencia'
 import { IconButton } from './IconButton'
 
 function useBloquearScroll(activo: boolean) {
@@ -47,13 +49,15 @@ export function Dialog({ open, onClose, title, children, width = 400, className,
   useEscape(onClose, open)
   useBloquearScroll(open)
   const ref = useFoco(open)
-  if (!open) return null
+  const { montado, cerrando } = usePresencia(open)
+  if (!montado) return null
   const full = fullscreenMobile && isMobile
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
-      <div className="anim-fade-in absolute inset-0 bg-scrim/50" onClick={onClose} aria-hidden="true" />
+      <div data-closing={cerrando} className="anim-fade-in absolute inset-0 bg-scrim/50" onClick={onClose} aria-hidden="true" />
       <div
         ref={ref}
+        data-closing={cerrando}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
@@ -61,7 +65,7 @@ export function Dialog({ open, onClose, title, children, width = 400, className,
         aria-label={title ? undefined : 'Diálogo'}
         className={cn(
           'relative flex max-h-full flex-col overflow-hidden bg-surface-container-high text-on-surface outline-none',
-          full ? 'anim-slide-up size-full' : 'anim-scale-in mx-4 max-h-[90dvh] w-full rounded-xl',
+          full ? 'anim-scale-in size-full' : 'anim-scale-in mx-4 max-h-[90dvh] w-full rounded-xl',
           className,
         )}
         style={full ? undefined : { maxWidth: width }}
@@ -184,25 +188,70 @@ export function Sheet({ open, onClose, title, children, side = 'auto', hideTitle
   useEscape(onClose, open)
   useBloquearScroll(open)
   const ref = useFoco(open)
-  if (!open) return null
+  const { montado, cerrando } = usePresencia(open)
+  const [dy, setDy] = useState(0)
+  const arrastre = useRef<{ y: number; t: number } | null>(null)
+  const prevAbierto = useRef(false)
+  useEffect(() => {
+    if (open && !prevAbierto.current) vibrar('tick')
+    prevAbierto.current = open
+  }, [open])
+  if (!montado) return null
   const bottom = isMobile || side === 'bottom'
+
+  // Arrastrar el asa hacia abajo cierra el sheet (con resorte de vuelta si no alcanza).
+  const inicio = (e: RPointerEvent) => {
+    if (!bottom) return
+    arrastre.current = { y: e.clientY, t: performance.now() }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+  const mover = (e: RPointerEvent) => {
+    if (!arrastre.current) return
+    setDy(Math.max(0, e.clientY - arrastre.current.y))
+  }
+  const fin = (e: RPointerEvent) => {
+    const a = arrastre.current
+    if (!a) return
+    arrastre.current = null
+    const dt = Math.max(1, performance.now() - a.t)
+    const velocidad = (e.clientY - a.y) / dt
+    if (dy > 110 || velocidad > 0.6) {
+      vibrar('click')
+      onClose()
+    }
+    setDy(0)
+  }
+
   return createPortal(
     <div className="fixed inset-0 z-50" role="presentation">
-      <div className="anim-fade-in absolute inset-0 bg-scrim/40" onClick={onClose} aria-hidden="true" />
+      <div data-closing={cerrando} className="anim-fade-in absolute inset-0 bg-scrim/40" onClick={onClose} aria-hidden="true" />
       <div
         ref={ref}
+        data-closing={cerrando}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={id}
+        style={dy > 0 ? { transform: `translateY(${dy}px)` } : undefined}
         className={cn(
           'absolute flex flex-col bg-surface-container-low text-on-surface outline-none',
+          dy === 0 && 'transition-transform spring-spatial',
           bottom
             ? 'anim-slide-up inset-x-0 bottom-0 max-h-[85dvh] rounded-t-xl pb-[env(safe-area-inset-bottom)]'
-            : 'anim-slide-right inset-y-0 right-0 w-[400px] max-w-full rounded-l-xl',
+            : 'anim-slide-right origin-right inset-y-0 right-0 w-[400px] max-w-full rounded-l-xl',
         )}
       >
-        {bottom && <div className="mx-auto mt-3 mb-1 h-1 w-8 rounded-full bg-on-surface-variant/40" aria-hidden="true" />}
+        {bottom && (
+          <div
+            className="touch-none py-3"
+            onPointerDown={inicio}
+            onPointerMove={mover}
+            onPointerUp={fin}
+            onPointerCancel={fin}
+          >
+            <div className="mx-auto h-1 w-8 rounded-full bg-on-surface-variant/40" aria-hidden="true" />
+          </div>
+        )}
         <div className={cn('flex items-center gap-2 px-4', hideTitle ? 'sr-only' : 'min-h-12 border-b border-outline-variant/60')}>
           <h2 id={id} className="type-title-m flex-1 text-center">
             {title}

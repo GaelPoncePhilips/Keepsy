@@ -8,6 +8,7 @@ import { Dialog } from '../../components/ui/Overlay'
 import { useAsync, useInfinite, useIsDesktop } from '../../lib/hooks'
 import * as postsApi from '../../services/posts'
 import * as storiesApi from '../../services/stories'
+import { repostsDeUsuario } from '../../services/temporal'
 import type { Story } from '../../types/api'
 import { HighlightEditor } from '../highlights/HighlightEditor'
 import { fechaStory, StoryPickGrid } from '../highlights/StoryPickGrid'
@@ -71,6 +72,28 @@ export function ReelsTab({ usuarioId, esPropio }: { usuarioId: number; esPropio:
       )}
     </>
   )
+}
+
+/** TEMPORAL (hueco 13): publicaciones y reels que el usuario republicó. */
+export function RepostsTab({ usuarioId, esPropio }: { usuarioId: number; esPropio: boolean }) {
+  const linkState = useLinkState()
+  const { items, error, loading, done, reload, sentinelRef } = useInfinite(
+    (offset, limit) => repostsDeUsuario(usuarioId, { offset, limit }),
+    [usuarioId],
+    12,
+  )
+  if (error && items.length === 0) return <ErrorState error={error} onRetry={reload} />
+  if (loading && items.length === 0) return <GridSkeleton />
+  if (done && items.length === 0) {
+    return (
+      <EmptyState
+        icon="repeat"
+        title={esPropio ? 'Todavía no republicaste nada' : 'Aún no hay republicaciones'}
+        text={esPropio ? 'Tocá el ícono de republicar en una publicación para mostrarla en tu perfil.' : undefined}
+      />
+    )
+  }
+  return <PostGrid posts={items} sentinelRef={done ? undefined : sentinelRef} linkState={linkState} />
 }
 
 export function ArchivoTab({ usuarioId, onDestacada }: { usuarioId: number; onDestacada?: () => void }) {

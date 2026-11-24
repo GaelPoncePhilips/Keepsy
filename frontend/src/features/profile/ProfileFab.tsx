@@ -10,7 +10,7 @@ import { Icon } from '../../components/ui/Icon'
 import { cn } from '../../lib/hooks'
 import type { ProfileTab } from './ProfilePage'
 
-const ACCION: Record<ProfileTab, { label: string; icon: string; to: string }> = {
+const ACCION: Record<Exclude<ProfileTab, 'republicaciones'>, { label: string; icon: string; to: string }> = {
   publicaciones: { label: 'Nueva publicación', icon: 'add_photo_alternate', to: '/crear/publicacion' },
   reels: { label: 'Nuevo reel', icon: 'movie', to: '/crear/reel' },
   albumes: { label: 'Nuevo álbum', icon: 'photo_album', to: '/albumes/nuevo' },
@@ -18,6 +18,11 @@ const ACCION: Record<ProfileTab, { label: string; icon: string; to: string }> = 
 }
 
 export function ProfileFab({ tab }: { tab: ProfileTab }) {
+  if (tab === 'republicaciones') return null
+  return <FabAccion tab={tab} />
+}
+
+function FabAccion({ tab }: { tab: Exclude<ProfileTab, 'republicaciones'> }) {
   const navigate = useNavigate()
   const [extendido, setExtendido] = useState(true)
   const a = ACCION[tab]

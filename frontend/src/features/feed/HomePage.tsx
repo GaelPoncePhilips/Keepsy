@@ -1,11 +1,13 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { DevSwitcherDialog, DevSwitcherList } from '../../app/layout/DevSwitcher'
-import { FollowButton, UserRow } from '../../components/shared'
+import { FollowButton, PostSkeleton, UserRow } from '../../components/shared'
 import { Avatar } from '../../components/ui/Avatar'
 import { CenteredLoader, EmptyState, ErrorState } from '../../components/ui/Feedback'
 import { Icon } from '../../components/ui/Icon'
 import { useAsync, useInfinite, useIsMobile, useMediaQuery } from '../../lib/hooks'
+import { useFlechasPublicaciones } from '../../lib/useFlechas'
+import { repostsDelFeed } from '../../services/temporal'
 import * as postsApi from '../../services/posts'
 import * as usuariosApi from '../../services/usuarios'
 import { useYo } from '../../stores/session'
@@ -116,6 +118,19 @@ export function HomePage() {
     [yo.id],
     10,
   )
+  useFlechasPublicaciones('[data-feed-post]')
+  // TEMPORAL (hueco 13): republicaciones de las cuentas que sigo, mezcladas por fecha.
+  const reposts = useAsync(() => repostsDelFeed(yo.id).catch(() => []), [yo.id])
+  const lista = useMemo(() => {
+    const ids = new Set(items.map((p) => p.id))
+    const extra = (reposts.data ?? []).filter((p) => {
+      if (ids.has(p.id)) return false
+      ids.add(p.id)
+      return true
+    })
+    const fecha = (p: (typeof items)[number]) => p.fecha_repost ?? p.fecha_publicacion
+    return extra.length === 0 ? items : [...items, ...extra].sort((a, b) => fecha(b).localeCompare(fecha(a)))
+  }, [items, reposts.data])
   const quitar = (id: number, usuarioId: number) =>
     setItems((prev) => prev.filter((p) => p.id !== id && (p.usuario_id !== usuarioId || p.usuario_id === yo.id)))
 
@@ -124,7 +139,10 @@ export function HomePage() {
       <main className="w-full max-w-[470px] md:pt-4">
         <StoriesTray />
         {items.length === 0 && loading ? (
-          <CenteredLoader />
+          <>
+            <PostSkeleton />
+            <PostSkeleton />
+          </>
         ) : items.length === 0 && error ? (
           <ErrorState error={error} onRetry={reload} />
         ) : items.length === 0 && done ? (
@@ -139,7 +157,7 @@ export function HomePage() {
           </div>
         ) : (
           <>
-            {items.map((p, i) => (
+            {lista.map((p, i) => (
               <Fragment key={p.id}>
                 <PostCard post={p} onDeleted={() => quitar(p.id, p.usuario_id)} />
                 {isMobile && i === 3 && <CarruselSugerencias />}

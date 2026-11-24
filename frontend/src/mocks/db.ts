@@ -118,6 +118,13 @@ export interface DbNotificacion {
   fecha: ISODate
 }
 
+/** TEMPORAL (hueco 13): republicaciones */
+export interface DbRepost {
+  usuario_id: number
+  post_id: number
+  fecha: ISODate
+}
+
 export interface Db {
   usuarios: DbUsuario[]
   seguidores: DbSeguimiento[]
@@ -136,6 +143,7 @@ export interface Db {
   participantes: DbParticipante[]
   mensajes: Mensaje[]
   notificaciones: DbNotificacion[]
+  reposts: DbRepost[]
   seq: Record<string, number>
 }
 
@@ -158,6 +166,7 @@ export function emptyDb(): Db {
     participantes: [],
     mensajes: [],
     notificaciones: [],
+    reposts: [],
     seq: {},
   }
 }

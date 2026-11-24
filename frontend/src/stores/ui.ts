@@ -20,15 +20,37 @@ interface UiState {
   setCrear: (v: boolean) => void
   setPanel: (p: Panel) => void
   setTema: (t: Tema) => void
+  estilo: Estilo
+  setEstilo: (e: Partial<Estilo>) => void
+}
+
+/** Estilo visual: clásica (tipo Instagram) o blob, con sus variantes de bordes y anillos. */
+export interface Estilo {
+  ui: 'clasica' | 'blob'
+  bordes: 'irregulares' | 'solidos'
+  anillos: 'formas' | 'regulares'
+}
+const ESTILO_KEY = 'keepsy.estilo'
+const ESTILO_DEF: Estilo = { ui: 'blob', bordes: 'solidos', anillos: 'regulares' }
+function estiloInicial(): Estilo {
+  try {
+    return { ...ESTILO_DEF, ...JSON.parse(localStorage.getItem(ESTILO_KEY) ?? '{}') }
+  } catch {
+    return ESTILO_DEF
+  }
+}
+function aplicarEstilo(e: Estilo) {
+  document.documentElement.dataset.estilo = e.ui
+  document.documentElement.dataset.bordes = e.ui === 'blob' ? e.bordes : ''
 }
 
 const TEMA_KEY = 'keepsy.tema'
 function temaInicial(): Tema {
   try {
     const t = localStorage.getItem(TEMA_KEY)
-    return t === 'claro' || t === 'oscuro' ? t : 'sistema'
+    return t === 'claro' || t === 'sistema' ? t : 'oscuro'
   } catch {
-    return 'sistema'
+    return 'oscuro'
   }
 }
 
@@ -39,6 +61,17 @@ export const useUi = create<UiState>((set, get) => ({
   crearAbierto: false,
   panel: null,
   tema: temaInicial(),
+  estilo: estiloInicial(),
+  setEstilo(parcial) {
+    const e = { ...get().estilo, ...parcial }
+    try {
+      localStorage.setItem(ESTILO_KEY, JSON.stringify(e))
+    } catch {
+      /* sin almacenamiento */
+    }
+    aplicarEstilo(e)
+    set({ estilo: e })
+  },
   snackbar(texto, accion) {
     const id = ++snackSeq
     set({ snacks: [...get().snacks.slice(-2), { id, texto, accion }] })
@@ -63,6 +96,8 @@ export const useUi = create<UiState>((set, get) => ({
     set({ tema: t })
   },
 }))
+
+aplicarEstilo(useUi.getState().estilo)
 
 /** Atajo para mostrar un snackbar desde cualquier lado. */
 export const snackbar = (texto: string, accion?: Snack['accion']) => useUi.getState().snackbar(texto, accion)

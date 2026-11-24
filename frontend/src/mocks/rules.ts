@@ -125,6 +125,9 @@ export function postDTO(db: Db, p: DbPost, yo: number, motivo?: string): Post {
     cantidad_likes: likes.length,
     cantidad_comentarios: comentarios.length,
     me_gusta: likes.some((l) => l.usuario_id === yo),
+    // TEMPORAL (hueco 13)
+    cantidad_reposts: (db.reposts ?? []).filter((r) => r.post_id === p.id).length,
+    me_republique: (db.reposts ?? []).some((r) => r.post_id === p.id && r.usuario_id === yo),
   }
   if (motivo !== undefined) dto.motivo = motivo
   return dto

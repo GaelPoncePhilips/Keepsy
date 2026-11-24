@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { CenteredLoader, EmptyState, ErrorState } from '../../components/ui/Feedback'
 import { Icon } from '../../components/ui/Icon'
 import { SearchBar } from '../../components/ui/Controls'
-import { useAsync } from '../../lib/hooks'
+import { useAsync, useMediaQuery } from '../../lib/hooks'
 import { plural } from '../../lib/time'
 import { tendencias } from '../../services/posts'
 import { buscarUsuarios } from '../../services/temporal'
@@ -133,10 +133,11 @@ export function SearchResults({ q, onNavigate }: { q: string; onNavigate?: () =>
 
 export function SearchPanelContent({ onNavigate }: { onNavigate?: () => void }) {
   const [q, setQ] = useState('')
+  const puntero = useMediaQuery('(pointer: fine)')
   return (
     <div>
       <div className="sticky top-0 z-10 bg-surface px-4 pb-2">
-        <SearchBar value={q} onChange={setQ} autoFocus />
+        <SearchBar value={q} onChange={setQ} autoFocus={puntero} />
       </div>
       <SearchResults q={q} onNavigate={onNavigate} />
     </div>

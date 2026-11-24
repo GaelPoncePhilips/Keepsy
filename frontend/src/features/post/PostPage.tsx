@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { navegarConZoom } from '../../lib/transicion'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ScreenHeader } from '../../components/shared'
 import { Avatar } from '../../components/ui/Avatar'
@@ -10,7 +11,8 @@ import { ApiError } from '../../services/client'
 import * as postsApi from '../../services/posts'
 import { useYo } from '../../stores/session'
 import type { Comentario, Post } from '../../types/api'
-import { CajaComentario, ComentarioItem } from './comentarios'
+import { Ambient } from '../../components/ui/Ambient'
+import { CajaComentario, HilosComentarios } from './comentarios'
 import { LikesSheet } from './LikesSheet'
 import { PostActions, PostCard, PostMedia, PostMenu, useLike } from './PostCard'
 import { RichText } from './RichText'
@@ -38,10 +40,12 @@ function ListaComentarios({
   post,
   items,
   onBorrado,
+  onResponder,
 }: {
   post: Post
   items: Comentario[] | undefined
   onBorrado: (id: number) => void
+  onResponder?: (c: Comentario) => void
 }) {
   const yo = useYo()
   return (
@@ -67,14 +71,12 @@ function ListaComentarios({
       ) : items.length === 0 && !post.descripcion ? (
         <EmptyState icon="chat_bubble" title="Todavía no hay comentarios" text="Iniciá la conversación." />
       ) : (
-        items.map((c) => (
-          <ComentarioItem
-            key={c.id}
-            comentario={c}
-            puedeBorrar={c.usuario_id === yo.id || post.usuario_id === yo.id}
-            onBorrado={onBorrado}
-          />
-        ))
+        <HilosComentarios
+          comentarios={items}
+          puedeBorrar={(c) => c.usuario_id === yo.id || post.usuario_id === yo.id}
+          onBorrado={onBorrado}
+          onResponder={onResponder}
+        />
       )}
     </div>
   )
@@ -86,10 +88,14 @@ function DetalleDosColumnas({ post, onDeleted }: { post: Post; onDeleted: () => 
   const coms = useAsync(() => postsApi.comentarios(post.id, { limit: 50 }), [post.id])
   const [sheet, setSheet] = useState<'likes' | 'compartir' | null>(null)
   const [foco, setFoco] = useState(0)
+  const [respondiendo, setRespondiendo] = useState<Comentario | null>(null)
   return (
     <div className="flex h-full min-h-0 w-full">
-      <div className="flex min-w-0 flex-[1.4] items-center justify-center bg-black">
-        <PostMedia post={post} fill onDoubleLike={() => void set(true)} />
+      <div className="relative flex min-w-0 flex-[1.4] items-center justify-center bg-black">
+        <Ambient src={post.url_imagen} />
+        <div className="relative z-10 flex size-full items-center justify-center">
+          <PostMedia post={post} fill onDoubleLike={() => void set(true)} />
+        </div>
       </div>
       <div className="flex w-[400px] max-w-[45%] shrink-0 flex-col border-l border-outline-variant bg-surface">
         <header className="flex items-center gap-3 border-b border-outline-variant px-4 py-3">
@@ -108,6 +114,7 @@ function DetalleDosColumnas({ post, onDeleted }: { post: Post; onDeleted: () => 
             <ListaComentarios
               post={post}
               items={coms.data}
+              onResponder={setRespondiendo}
               onBorrado={(id) => coms.setData((prev) => (prev ?? []).filter((c) => c.id !== id))}
             />
           )}
@@ -135,7 +142,9 @@ function DetalleDosColumnas({ post, onDeleted }: { post: Post; onDeleted: () => 
           key={foco}
           autoFocus={foco > 0}
           postId={post.id}
-          className="border-t border-outline-variant px-4 py-1"
+          className="border-t border-outline-variant px-4 py-2"
+          respondiendoA={respondiendo}
+          onCancelarRespuesta={() => setRespondiendo(null)}
           onComentado={(c) => coms.setData((prev) => [...(prev ?? []), c])}
         />
       </div>
@@ -148,6 +157,7 @@ function DetalleDosColumnas({ post, onDeleted }: { post: Post; onDeleted: () => 
 /** Vista móvil: PostCard + comentarios debajo. */
 function DetalleMovil({ post, onDeleted }: { post: Post; onDeleted: () => void }) {
   const coms = useAsync(() => postsApi.comentarios(post.id, { limit: 50 }), [post.id])
+  const [respondiendo, setRespondiendo] = useState<Comentario | null>(null)
   return (
     <div>
       <PostCard post={post} onDeleted={onDeleted} />
@@ -157,8 +167,20 @@ function DetalleMovil({ post, onDeleted }: { post: Post; onDeleted: () => void }
         <ListaComentarios
           post={{ ...post, descripcion: null }}
           items={coms.data}
+          onResponder={setRespondiendo}
           onBorrado={(id) => coms.setData((prev) => (prev ?? []).filter((c) => c.id !== id))}
         />
+      )}
+      {respondiendo && (
+        <div className="anim-slide-up sticky bottom-0 border-t border-outline-variant bg-surface px-4 py-2 pb-[calc(env(safe-area-inset-bottom)+8px)]">
+          <CajaComentario
+            postId={post.id}
+            autoFocus
+            respondiendoA={respondiendo}
+            onCancelarRespuesta={() => setRespondiendo(null)}
+            onComentado={(c) => coms.setData((prev) => [...(prev ?? []), c])}
+          />
+        </div>
       )}
     </div>
   )
@@ -169,7 +191,7 @@ export function PostPage() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const { data, error, loading, reload } = usePost()
-  const salir = () => navigate(-1)
+  const salir = () => navegarConZoom(navigate, -1)
   return (
     <div className="mx-auto w-full max-w-[935px] md:px-4 md:py-6">
       {isMobile && <ScreenHeader title="Publicación" onBack={salir} />}
@@ -193,7 +215,7 @@ export function PostModal() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const { data, error, loading, reload } = usePost()
-  const cerrar = () => navigate(-1)
+  const cerrar = () => navegarConZoom(navigate, -1)
   if (isMobile) {
     return (
       <div className="fixed inset-0 z-40 overflow-y-auto bg-surface">

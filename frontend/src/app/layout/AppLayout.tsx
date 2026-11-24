@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Outlet, useLocation } from 'react-router'
 import { ErrorBoundary } from '../../components/ErrorBoundary'
+import { GooFilters } from '../../components/ui/Blobs'
 import { Snackbars } from '../../components/ui/Feedback'
 import { IconButton } from '../../components/ui/IconButton'
 import { NotificationsList } from '../../features/notifications/NotificationsList'
@@ -9,7 +10,8 @@ import { cn, useEscape } from '../../lib/hooks'
 import { useBadges } from '../../stores/badges'
 import { useUi } from '../../stores/ui'
 import { CreateMenu } from './CreateMenu'
-import { BottomNav, MobileTopBar, SideNav } from './Nav'
+import { BottomNav, SideNav } from './Nav'
+import { MobileTopBar } from './TopBar'
 
 /** Panel deslizable de escritorio (Buscar / Notificaciones), como Instagram web. */
 function SidePanel() {
@@ -39,6 +41,14 @@ function SidePanel() {
   )
 }
 
+const RESERVADAS = new Set(['buscar', 'explorar', 'hashtags', 'reels', 'p', 'stories', 'destacadas', 'direct', 'notificaciones', 'crear', 'albumes', 'cuenta'])
+
+/** Entre pestañas de un mismo perfil la pantalla no se remonta: solo cambia el contenido de la pestaña. */
+function claveRuta(pathname: string): string {
+  const m = /^\/([^/]+)(?:\/(?:reels|albumes|republicaciones|archivo))?$/.exec(pathname)
+  return m && !RESERVADAS.has(m[1]) ? `/${m[1]}` : pathname
+}
+
 /** Marco de la app autenticada: barra lateral (≥768), barra inferior (<768), paneles, "Crear" y snackbars. */
 export function AppLayout() {
   const { pathname } = useLocation()
@@ -58,24 +68,31 @@ export function AppLayout() {
     void refrescar()
   }, [pathname, refrescar, setPanel])
 
+  // Sentido del zoom leído una vez por página (useMemo por ruta): si cambiara después, la animación se repetiría.
+  const clave = claveRuta(pathname)
+  const dirAlMontar = useMemo(() => (clave ? document.documentElement.dataset.dir : undefined), [clave])
   const esInicio = pathname === '/'
   const sinBarraInferior = pathname.startsWith('/direct/') || pathname.startsWith('/stories') || pathname.startsWith('/destacadas')
   const colapsada = panel !== null || pathname.startsWith('/direct')
 
   return (
-    <div className="min-h-svh bg-surface">
+    <div className="min-h-svh md:bg-surface">
+      <GooFilters />
       <SideNav />
       <SidePanel />
       <main
+        id="contenido-blob"
         className={cn(
-          'min-h-svh md:pl-[var(--sidebar-w-collapsed)]',
+          'relative z-10 min-h-svh md:pl-[var(--sidebar-w-collapsed)]',
           !colapsada && 'lg:pl-[var(--sidebar-w)]',
           !sinBarraInferior && 'pb-[calc(var(--nav-h)+env(safe-area-inset-bottom))] md:pb-0',
         )}
       >
         {esInicio && <MobileTopBar />}
-        <ErrorBoundary key={pathname}>
-          <Outlet />
+        <ErrorBoundary key={claveRuta(pathname)}>
+          <div key={claveRuta(pathname)} className={cn(!sinBarraInferior && 'anim-page', !sinBarraInferior && dirAlMontar === 'atras' && 'anim-page-atras')}>
+            <Outlet />
+          </div>
         </ErrorBoundary>
       </main>
       {!sinBarraInferior && <BottomNav />}

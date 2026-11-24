@@ -3,11 +3,12 @@
  * Perfil propio: mantener presionada una destacada (~400 ms) la "levanta" y se arrastra para reordenar;
  * al soltar se guarda el orden (PUT /usuarios/{id}/destacadas/orden). Funciona con dedo y con mouse.
  */
-import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { Icon } from '../../components/ui/Icon'
 import { IconButton } from '../../components/ui/IconButton'
 import { ActionMenu, Confirm } from '../../components/ui/Overlay'
+import { vibrar } from '../../lib/haptics'
 import { cn, useAsync } from '../../lib/hooks'
 import { mensajeDeError } from '../../services/client'
 import * as storiesApi from '../../services/stories'
@@ -16,7 +17,15 @@ import { snackbar } from '../../stores/ui'
 import type { Destacada } from '../../types/api'
 import { HighlightEditor } from './HighlightEditor'
 
-const LONG_PRESS_MS = 400
+const LONG_PRESS_MS = 350
+
+/** Easing y duración del spring "spatial-fast" de M3 (generados en theme/motion.ts). */
+function springWaapi(): { easing: string; duration: number } {
+  const cs = getComputedStyle(document.documentElement)
+  const easing = cs.getPropertyValue('--md-motion-spatial-fast-easing').trim() || 'ease-out'
+  const duration = parseFloat(cs.getPropertyValue('--md-motion-spatial-fast-duration')) || 300
+  return { easing, duration }
+}
 const TOLERANCIA_PX = 8
 
 interface Gesto {
@@ -40,6 +49,9 @@ export function HighlightsRow({ usuarioId, esPropio }: { usuarioId: number; esPr
   const [editando, setEditando] = useState<Destacada | null>(null)
   const [borrando, setBorrando] = useState<Destacada | null>(null)
   const [arrastrando, setArrastrando] = useState<number | null>(null)
+  const [dragX, setDragX] = useState(0)
+  const punteroX = useRef(0)
+  const lefts = useRef(new Map<number, number>())
   const [pista, setPista] = useState(false)
   const gesto = useRef<Gesto | null>(null)
   const ulRef = useRef<HTMLUListElement>(null)
@@ -47,6 +59,31 @@ export function HighlightsRow({ usuarioId, esPropio }: { usuarioId: number; esPr
   const ordenInicial = useRef<number[]>([])
 
   const lista = [...(data ?? [])].sort((a, b) => a.orden - b.orden)
+  const ordenKey = lista.map((d) => d.id).join(',')
+
+  // El ítem levantado sigue al dedo: su desplazamiento se calcula contra su hueco actual.
+  const calcularDrag = (id: number) => {
+    const li = itemRefs.current.get(id)
+    const ul = ulRef.current
+    if (!li || !ul) return 0
+    const centro = ul.getBoundingClientRect().left + li.offsetLeft - ul.scrollLeft + li.offsetWidth / 2
+    return punteroX.current - centro
+  }
+
+  // FLIP con spring: los demás ítems se deslizan a su nuevo lugar en vez de saltar.
+  useLayoutEffect(() => {
+    const { easing, duration } = springWaapi()
+    const nuevos = new Map<number, number>()
+    itemRefs.current.forEach((li, id) => {
+      nuevos.set(id, li.offsetLeft)
+      const antes = lefts.current.get(id)
+      if (antes === undefined || antes === li.offsetLeft || id === arrastrando) return
+      li.animate([{ translate: `${antes - li.offsetLeft}px 0` }, { translate: '0 0' }], { duration, easing })
+    })
+    lefts.current = nuevos
+    if (arrastrando !== null) setDragX(calcularDrag(arrastrando))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ordenKey])
 
   // Mientras se arrastra con el dedo, el scroll horizontal de la fila no debe moverse.
   useEffect(() => {
@@ -91,6 +128,14 @@ export function HighlightsRow({ usuarioId, esPropio }: { usuarioId: number; esPr
       } catch {
         /* ya liberado */
       }
+      // "Se fija": vuelve desde donde lo soltaste hasta su hueco con un resorte.
+      const li = itemRefs.current.get(g.id)
+      if (li) {
+        const { easing, duration } = springWaapi()
+        li.animate([{ translate: `${dragX}px 0`, scale: '1.12' }, { translate: '0 0', scale: '1' }], { duration: duration + 80, easing })
+      }
+      vibrar('click')
+      setDragX(0)
       setArrastrando(null)
       if (soltar) void guardarOrden(lista.map((d) => d.id))
     }
@@ -121,7 +166,9 @@ export function HighlightsRow({ usuarioId, esPropio }: { usuarioId: number; esPr
         } catch {
           /* puntero ya soltado */
         }
-        navigator.vibrate?.(15)
+        vibrar('heavy')
+        punteroX.current = g.x
+        setDragX(0)
         setArrastrando(d.id)
         setPista(false)
       }, LONG_PRESS_MS)
@@ -139,6 +186,8 @@ export function HighlightsRow({ usuarioId, esPropio }: { usuarioId: number; esPr
       }
       return
     }
+    punteroX.current = e.clientX
+    setDragX(calcularDrag(g.id))
     // Destino: el ítem cuyo centro está más cerca del puntero.
     let destino = -1
     let mejor = Infinity
@@ -153,6 +202,7 @@ export function HighlightsRow({ usuarioId, esPropio }: { usuarioId: number; esPr
     })
     const actual = lista.findIndex((d) => d.id === g.id)
     if (destino < 0 || destino === actual) return
+    vibrar('tick')
     const n = [...lista]
     const [mov] = n.splice(actual, 1)
     n.splice(destino, 0, mov)
@@ -185,10 +235,11 @@ export function HighlightsRow({ usuarioId, esPropio }: { usuarioId: number; esPr
                 else itemRefs.current.delete(d.id)
               }}
               className={cn(
-                'flex w-[83px] shrink-0 flex-col items-center gap-1 transition-transform spring-spatial-fast',
-                levantada && 'z-10 scale-110',
+                'flex w-[83px] shrink-0 flex-col items-center gap-1 transition-opacity',
+                levantada && 'relative z-10',
                 arrastrando !== null && !levantada && 'opacity-70',
               )}
+              style={levantada ? { translate: `${dragX}px 0`, scale: '1.12' } : undefined}
             >
               <button
                 type="button"

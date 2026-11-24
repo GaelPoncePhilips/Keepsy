@@ -6,6 +6,35 @@ export function cn(...xs: (string | false | null | undefined)[]): string {
   return xs.filter(Boolean).join(' ')
 }
 
+/**
+ * Caché "stale-while-revalidate" en memoria: al volver a una pantalla se muestran al instante los datos
+ * de la última visita (sin pantalla de carga) y se revalidan en segundo plano.
+ * La clave sale del código de la función + sus deps; se vacía al cambiar de sesión.
+ */
+const cacheDatos = new Map<string, unknown>()
+const MAX_CACHE = 200
+
+export function limpiarCache(): void {
+  cacheDatos.clear()
+}
+
+function claveDe(fn: { toString: () => string }, deps: readonly unknown[], extra = ''): string | null {
+  try {
+    return `${extra}|${fn.toString()}|${JSON.stringify(deps)}`
+  } catch {
+    return null
+  }
+}
+
+function guardarCache(clave: string | null, valor: unknown): void {
+  if (!clave) return
+  if (cacheDatos.size >= MAX_CACHE) {
+    const primera = cacheDatos.keys().next().value
+    if (primera !== undefined) cacheDatos.delete(primera)
+  }
+  cacheDatos.set(clave, valor)
+}
+
 export interface AsyncState<T> {
   data: T | undefined
   error: ApiError | Error | null
@@ -16,23 +45,33 @@ export interface AsyncState<T> {
 
 /** Carga datos con estados de carga/error. `deps` vuelve a ejecutar la carga. */
 export function useAsync<T>(fn: () => Promise<T>, deps: readonly unknown[]): AsyncState<T> {
-  const [data, setDataState] = useState<T | undefined>(undefined)
+  const clave = claveDe(fn, deps)
+  const enCache = clave !== null && cacheDatos.has(clave)
+  const [data, setDataState] = useState<T | undefined>(() => (enCache && clave ? (cacheDatos.get(clave) as T) : undefined))
   const [error, setError] = useState<ApiError | Error | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!enCache)
   const [tick, setTick] = useState(0)
   const fnRef = useRef(fn)
+  const claveRef = useRef(clave)
   useEffect(() => {
     fnRef.current = fn
+    claveRef.current = clave
   })
 
   useEffect(() => {
     let vivo = true
-    setLoading(true)
+    const k = claveRef.current
+    const hit = k !== null && cacheDatos.has(k)
+    // Con datos en caché se muestran ya (sin loader) y se revalida por detrás.
+    if (hit && k) setDataState(cacheDatos.get(k) as T)
+    setLoading(!hit)
     setError(null)
     fnRef
       .current()
       .then((d) => {
-        if (vivo) setDataState(d)
+        if (!vivo) return
+        guardarCache(k, d)
+        setDataState(d)
       })
       .catch((e: unknown) => {
         if (vivo) setError(e instanceof Error ? e : new Error(String(e)))
@@ -47,7 +86,11 @@ export function useAsync<T>(fn: () => Promise<T>, deps: readonly unknown[]): Asy
 
   const reload = useCallback(() => setTick((t) => t + 1), [])
   const setData = useCallback((u: T | ((prev: T | undefined) => T)) => {
-    setDataState((prev) => (typeof u === 'function' ? (u as (p: T | undefined) => T)(prev) : u))
+    setDataState((prev) => {
+      const nuevo = typeof u === 'function' ? (u as (p: T | undefined) => T)(prev) : u
+      guardarCache(claveRef.current, nuevo)
+      return nuevo
+    })
   }, [])
   return { data, error, loading, reload, setData }
 }
@@ -70,16 +113,26 @@ export function useInfinite<T>(
   deps: readonly unknown[],
   limit = 12,
 ): InfiniteState<T> {
-  const [items, setItemsState] = useState<T[]>([])
+  const clave = claveDe(fetchPage, deps, 'inf')
+  const inicial = clave !== null ? (cacheDatos.get(clave) as { items: T[]; done: boolean } | undefined) : undefined
+  const [items, setItemsState] = useState<T[]>(() => inicial?.items ?? [])
   const [error, setError] = useState<ApiError | Error | null>(null)
   const [loading, setLoading] = useState(false)
-  const [done, setDone] = useState(false)
+  const [done, setDone] = useState(() => inicial?.done ?? false)
   const [gen, setGen] = useState(0)
   const fetchRef = useRef(fetchPage)
+  const claveRef = useRef(clave)
   useEffect(() => {
     fetchRef.current = fetchPage
+    claveRef.current = clave
   })
   const state = useRef({ offset: 0, loading: false, done: false, gen: 0 })
+  const itemsRef = useRef(items)
+  useEffect(() => {
+    itemsRef.current = items
+    const k = claveRef.current
+    if (k && items.length > 0) guardarCache(k, { items, done: state.current.done })
+  }, [items, done])
   const observer = useRef<IntersectionObserver | null>(null)
 
   const loadMore = useCallback(() => {
@@ -113,9 +166,35 @@ export function useInfinite<T>(
 
   useEffect(() => {
     state.current = { offset: 0, loading: false, done: false, gen: state.current.gen + 1 }
+    const k = claveRef.current
+    const hit = k !== null ? (cacheDatos.get(k) as { items: T[]; done: boolean } | undefined) : undefined
+    setError(null)
+    if (hit && hit.items.length > 0) {
+      // Pantalla instantánea con lo de la última visita; se refresca la primera tanda por detrás.
+      const myGen = state.current.gen
+      const n = Math.min(50, Math.max(limit, hit.items.length))
+      setItemsState(hit.items)
+      setDone(hit.done)
+      state.current.offset = hit.items.length
+      state.current.done = hit.done
+      fetchRef
+        .current(0, n)
+        .then((page) => {
+          if (myGen !== state.current.gen) return
+          const resto = hit.items.slice(page.length)
+          const nuevos = page.length >= hit.items.length ? page : [...page, ...resto]
+          state.current.offset = nuevos.length
+          if (page.length < n) {
+            state.current.done = true
+            setDone(true)
+          }
+          setItemsState(nuevos)
+        })
+        .catch(() => undefined)
+      return
+    }
     setItemsState([])
     setDone(false)
-    setError(null)
     loadMore()
   }, [...deps, gen])
 

@@ -3,7 +3,8 @@
 import type { Notificacion } from '../../types/temporal'
 import type { DbNotificacion } from '../db'
 import { obj } from '../handlers/util'
-import { hayBloqueo, notFound, paginar, resumen, usuario } from '../rules'
+import { assertPuedeVer, hayBloqueo, notFound, paginar, postDTO, resumen, sigue, usuario } from '../rules'
+import { nowIso } from '../db'
 import { route } from '../server'
 import { idParam } from '../handlers/util'
 import type { Db } from '../db'
@@ -71,4 +72,57 @@ route('GET', '/usuarios/{id}/resumen', ({ db, yo, params }) => {
   const id = idParam(params, 'id')
   if (hayBloqueo(db, yo, id)) throw notFound('Usuario no encontrado')
   return resumen(usuario(db, id))
+})
+
+// ---------- TEMPORAL (hueco 13): republicaciones
+function repostDTO(db: Db, yo: number, r: { usuario_id: number; post_id: number; fecha: string }) {
+  const p = db.posts.find((x) => x.id === r.post_id)
+  if (!p) return null
+  try {
+    assertPuedeVer(db, yo, p.usuario_id)
+  } catch {
+    return null
+  }
+  if (hayBloqueo(db, yo, p.usuario_id)) return null
+  return { ...postDTO(db, p, yo), repostado_por: resumen(usuario(db, r.usuario_id)), fecha_repost: r.fecha }
+}
+
+// POST /posts/{id}/repost → {cantidad_reposts, me_republique}
+route('POST', '/posts/{id}/repost', ({ db, yo, params }) => {
+  const id = idParam(params, 'id')
+  const p = db.posts.find((x) => x.id === id)
+  if (!p) throw notFound('Post no encontrado')
+  assertPuedeVer(db, yo, p.usuario_id)
+  if (!db.reposts.some((r) => r.post_id === id && r.usuario_id === yo)) db.reposts.push({ usuario_id: yo, post_id: id, fecha: nowIso() })
+  return { cantidad_reposts: db.reposts.filter((r) => r.post_id === id).length, me_republique: true }
+})
+
+// DELETE /posts/{id}/repost → {cantidad_reposts, me_republique}
+route('DELETE', '/posts/{id}/repost', ({ db, yo, params }) => {
+  const id = idParam(params, 'id')
+  db.reposts = db.reposts.filter((r) => !(r.post_id === id && r.usuario_id === yo))
+  return { cantidad_reposts: db.reposts.filter((r) => r.post_id === id).length, me_republique: false }
+})
+
+// GET /usuarios/{id}/reposts → Post[] republicados por el usuario (fecha desc)
+route('GET', '/usuarios/{id}/reposts', ({ db, yo, params, query }) => {
+  const id = idParam(params, 'id')
+  assertPuedeVer(db, yo, id)
+  const lista = db.reposts
+    .filter((r) => r.usuario_id === id)
+    .sort((a, b) => b.fecha.localeCompare(a.fecha))
+    .map((r) => repostDTO(db, yo, r))
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+  return paginar(lista, query)
+})
+
+// GET /usuarios/{id}/feed/reposts → republicaciones de las cuentas que sigo (para mezclar en el feed)
+route('GET', '/usuarios/{id}/feed/reposts', ({ db, yo, params, query }) => {
+  const id = idParam(params, 'id')
+  const lista = db.reposts
+    .filter((r) => r.usuario_id !== id && sigue(db, id, r.usuario_id))
+    .sort((a, b) => b.fecha.localeCompare(a.fecha))
+    .map((r) => repostDTO(db, yo, r))
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+  return paginar(lista, query, 20)
 })

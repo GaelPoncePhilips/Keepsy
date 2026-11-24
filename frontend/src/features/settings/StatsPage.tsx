@@ -1,4 +1,5 @@
 /** Estadísticas (HU12): frases simples, sin gráficos. */
+import { navegarConZoom } from '../../lib/transicion'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ScreenHeader } from '../../components/shared'
@@ -51,7 +52,7 @@ export function StatsPage() {
 
   return (
     <div className="mx-auto w-full max-w-[600px] pb-10">
-      <ScreenHeader title="Estadísticas" onBack={() => navigate('/cuenta/ajustes')} />
+      <ScreenHeader title="Estadísticas" onBack={() => navegarConZoom(navigate, '/cuenta/ajustes', { atras: true })} />
       <div className="flex flex-col gap-3 px-4 pt-4">
         <div className="flex flex-wrap gap-2">
           <FilterChip label="7 días" selected={atajo === '7'} onClick={() => elegir('7')} />

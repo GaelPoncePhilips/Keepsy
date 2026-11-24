@@ -1,7 +1,7 @@
 // TEMPORAL — servicios de endpoints que el contrato no define todavía (docs/TEMPORAL.md).
 // Cada uno responde desde el mock aunque VITE_USE_MOCK=false mientras su flag esté activo.
 import { temporal } from '../../config/env'
-import type { Paginacion, UsuarioResumen } from '../../types/api'
+import type { Paginacion, Post, UsuarioResumen } from '../../types/api'
 import type { CantidadNoLeidas, Notificacion } from '../../types/temporal'
 import { temporalRequest } from '../client'
 
@@ -45,3 +45,25 @@ export function usuarioPorId(id: number): Promise<UsuarioResumen> {
 export function recordarUsuario(u: UsuarioResumen): void {
   cacheResumen.set(u.id, Promise.resolve(u))
 }
+
+// ---------- Hueco 13: republicaciones
+
+export interface EstadoRepost {
+  cantidad_reposts: number
+  me_republique: boolean
+}
+
+/** TEMPORAL POST /posts/{id}/repost → {cantidad_reposts, me_republique} */
+export const republicar = (id: number) =>
+  temporalRequest<EstadoRepost>(temporal.reposts, 'POST', `/posts/${id}/repost`, { body: {} })
+
+/** TEMPORAL DELETE /posts/{id}/repost */
+export const quitarRepublicacion = (id: number) => temporalRequest<EstadoRepost>(temporal.reposts, 'DELETE', `/posts/${id}/repost`)
+
+/** TEMPORAL GET /usuarios/{id}/reposts → Post[] con repostado_por */
+export const repostsDeUsuario = (id: number, p: Paginacion = {}) =>
+  temporalRequest<Post[]>(temporal.reposts, 'GET', `/usuarios/${id}/reposts`, { query: { limit: 12, ...p } })
+
+/** TEMPORAL GET /usuarios/{id}/feed/reposts → Post[] republicados por quienes sigo */
+export const repostsDelFeed = (id: number) =>
+  temporalRequest<Post[]>(temporal.reposts, 'GET', `/usuarios/${id}/feed/reposts`, { query: { limit: 20 } })

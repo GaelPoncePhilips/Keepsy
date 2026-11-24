@@ -4,12 +4,14 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#4B58AA" />
+    <!-- Se reemplaza en runtime con el color de fondo del tema activo (theme/color.ts) -->
+    <meta name="theme-color" content="#FCF8FF" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#121318" media="(prefers-color-scheme: dark)" />
     <!-- iOS: instalar con Compartir → "Agregar a inicio" -->
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Keepsy" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="Keepsy — compartí fotos, reels, stories y álbumes con tu gente." />

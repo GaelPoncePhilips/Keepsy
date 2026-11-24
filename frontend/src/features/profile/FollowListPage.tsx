@@ -1,4 +1,5 @@
 /** Seguidores / seguidos de un perfil (HU3). */
+import { navegarConZoom } from '../../lib/transicion'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { FollowButton, ScreenHeader, UserRow } from '../../components/shared'
@@ -20,7 +21,7 @@ export function FollowListPage({ tipo }: { tipo: 'seguidores' | 'seguidos' }) {
 
   return (
     <div className="mx-auto w-full max-w-[600px]">
-      <ScreenHeader title={username} onBack={() => navigate(`/${username}`)} />
+      <ScreenHeader title={username} onBack={() => navegarConZoom(navigate, `/${username}`, { atras: true })} />
       <Tabs
         items={[
           { id: 'seguidores', label: 'Seguidores', icon: 'group' },
