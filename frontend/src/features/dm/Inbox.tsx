@@ -1,7 +1,8 @@
 import { decodificar } from '../../services/temporal/comentariosExtra'
 import { useEffect } from 'react'
 import { albumDeInvitacion } from '../../services/temporal/invitacionDm'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
+import { navegarConZoom } from '../../lib/transicion'
 import { Avatar } from '../../components/ui/Avatar'
 import { CenteredLoader, EmptyState, ErrorState } from '../../components/ui/Feedback'
 import { IconButton } from '../../components/ui/IconButton'
@@ -64,6 +65,7 @@ export function Inbox({
   onNuevo: () => void
 }) {
   const yo = useYo()
+  const navigate = useNavigate()
   const { data, error, loading, reload } = useAsync(async () => {
     const [convs, sols] = await Promise.all([conversaciones(), solicitudesDeMensaje()])
     return { convs, sols }
@@ -79,8 +81,9 @@ export function Inbox({
     cn('state rounded-full px-4 py-1.5 type-label-l', on ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant')
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-14 shrink-0 items-center justify-between pr-2 pl-5">
-        <h1 className="type-title-l emphasized truncate">{yo.username}</h1>
+      <header className="flex h-14 shrink-0 items-center gap-1 pr-2 pl-1">
+        <IconButton icon="arrow_back" label="Volver" onClick={() => navegarConZoom(navigate, -1, { atras: true })} />
+        <h1 className="type-title-l emphasized min-w-0 flex-1 truncate">{yo.username}</h1>
         <IconButton icon="edit_square" label="Mensaje nuevo" onClick={onNuevo} />
       </header>
       <div role="tablist" className="flex shrink-0 gap-1 px-4 pb-2">

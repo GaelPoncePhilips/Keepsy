@@ -25,6 +25,50 @@ export function Logo({ size = 28 }: { size?: number }) {
  * la gota del blob lo envuelve y el foco principal de luz nace de su ícono. "Crear" abre el menú radial.
  */
 export function BottomNav() {
+  return useUi((s) => s.estilo.ui) === 'clasica' ? <BottomNavClasica /> : <BottomNavBlob />
+}
+
+/** Barra inferior clásica tipo Instagram: 5 íconos sin texto, activo = relleno, Crear abre el diálogo. */
+function BottomNavClasica() {
+  const yo = useYo()
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const setCrear = useUi((s) => s.setCrear)
+  const panel = useUi((s) => s.panel)
+  const activo = panel ? null : activoDesdeRuta(pathname, yo.username)
+  const click = (id: NavId) => {
+    if (id === 'crear') setCrear(true)
+    else if (id === 'perfil') navigate(`/${yo.username}`)
+    else navigate(RUTAS[id] ?? '/')
+  }
+  return (
+    <nav aria-label="Navegación principal" className="barra-fija fixed inset-x-0 bottom-0 z-30 border-t border-outline-variant bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
+      <ul className="flex h-[var(--nav-h)] items-stretch justify-around">
+        {MOBILE_TABS.map((id) => {
+          const on = activo === id
+          return (
+            <li key={id} className="flex flex-1 justify-center">
+              <button type="button" aria-label={LABELS[id]} aria-current={on ? 'page' : undefined} onClick={() => click(id)} className="flex h-full min-w-12 flex-1 items-center justify-center">
+                {id === 'perfil' ? (
+                  <span className={cn('rounded-full p-[2px]', on ? 'ring-2 ring-on-surface' : '')}>
+                    <Avatar username={yo.username} size={24} alt="" />
+                  </span>
+                ) : (
+                  <span key={String(on)} className={on ? 'select-pop' : undefined}>
+                    <Icon name={ICONOS[id]} fill={on} size={26} />
+                  </span>
+                )}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </nav>
+  )
+}
+
+function BottomNavBlob() {
+  const solido = useUi((s) => s.estilo.bordes) === 'solidos'
   const yo = useYo()
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -41,8 +85,8 @@ export function BottomNav() {
   return (
     <>
       {/* Fondo sólido de la barra; la gota del blob se dibuja encima y los íconos encima de ella */}
-      <div id="nav-barra-fondo" aria-hidden="true" className="barra-fija fixed inset-x-0 bottom-0 z-30 h-[calc(var(--nav-h)+env(safe-area-inset-bottom))] rounded-t-[28px] bg-surface-container md:hidden" />
-      <NavBlob index={ultimo.current} count={MOBILE_TABS.length} lamina={!pathname.startsWith('/reels')} />
+      <div id="nav-barra-fondo" aria-hidden="true" className={cn('barra-fija fixed inset-x-0 bottom-0 z-30 h-[calc(var(--nav-h)+env(safe-area-inset-bottom))] bg-surface-container md:hidden', !solido && 'rounded-t-[28px]')} />
+      <NavBlob index={ultimo.current} count={MOBILE_TABS.length} lamina={!pathname.startsWith('/reels')} solido={solido} />
       <nav aria-label="Navegación principal" className="barra-fija fixed inset-x-0 bottom-0 z-[32] pb-[env(safe-area-inset-bottom)] md:hidden">
         <ul className="relative z-10 flex h-[var(--nav-h)] items-stretch justify-around">
           {MOBILE_TABS.map((id) => {

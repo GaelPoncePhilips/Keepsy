@@ -16,7 +16,7 @@ import { quitarRepublicacion, republicar } from '../../services/temporal'
 import { decodificar } from '../../services/temporal/comentariosExtra'
 import * as usuariosApi from '../../services/usuarios'
 import { useYo } from '../../stores/session'
-import { snackbar } from '../../stores/ui'
+import { snackbar, useUi } from '../../stores/ui'
 import type { Comentario, Post } from '../../types/api'
 import { CajaComentario, MediaAdjunta } from './comentarios'
 import { CommentsSheet } from './CommentsSheet'
@@ -315,6 +315,9 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
   const [misComentarios, setMisComentarios] = useState<Comentario[]>([])
   const [expandida, setExpandida] = useState(false)
   const [sheet, setSheet] = useState<'comentarios' | 'likes' | 'compartir' | null>(null)
+  const estilo = useUi((s) => s.estilo)
+  const hueco = isMobile && estilo.ui === 'blob' && estilo.bordes === 'irregulares'
+  const solido = isMobile && estilo.ui === 'blob' && estilo.bordes === 'solidos'
 
   const abrirPost = () => {
     if (isMobile) navegarConZoom(navigate, `/p/${post.id}`)
@@ -330,7 +333,7 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
   return (
     <article
       data-feed-post
-      className="mb-4 scroll-mt-[64px] pb-2 md:mb-2 md:scroll-mt-4 md:border-b md:border-outline-variant md:pb-4"
+      className="mb-4 scroll-mt-[64px] pb-2 md:mb-2 border-outline-variant [[data-estilo=clasica]_&]:border-b md:scroll-mt-4 md:border-b md:border-outline-variant md:pb-4"
       aria-label={`Publicación de ${post.autor_username}`}
     >
       {post.repostado_por && (
@@ -342,7 +345,7 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
           republicó
         </p>
       )}
-      {isMobile ? (
+      {hueco ? (
         <HuecoPost
           fondo={post.url_imagen}
           avatar={
@@ -366,7 +369,7 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
         </HuecoPost>
       ) : (
         <>
-          <header className="flex items-center gap-2.5 py-2">
+          <header className="flex items-center gap-2.5 px-3 py-2 md:px-0">
             <Link to={`/${post.autor_username}`} className="shrink-0">
               <Avatar username={post.autor_username} size={32} />
             </Link>
@@ -378,7 +381,7 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
             </p>
             <PostMenu post={post} onDeleted={onDeleted} onBlocked={onDeleted} />
           </header>
-          <div className="overflow-hidden rounded-xs">
+          <div className={solido ? 'mx-1 overflow-hidden rounded-[28px] [corner-shape:squircle]' : 'md:overflow-hidden md:rounded-xs'}>
             <PostMedia post={post} onDoubleLike={() => void set(true)} onOpen={abrirPost} />
           </div>
         </>

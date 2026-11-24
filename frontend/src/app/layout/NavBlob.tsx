@@ -95,6 +95,72 @@ function contorno(g: Geo, xc: number, t: number, p: number, s: number): [number,
   return pts.map(([x, y]) => [xc + (x - xc) * e, fondoGota + (y - fondoGota) * e])
 }
 
+/**
+ * Bordes sólidos: rectángulo redondeado con esquinas de superelipse (n=4, continuidad G2), sin ondas ni gota.
+ * Los puntos son densos en las esquinas para que el suavizado Catmull-Rom no las deforme.
+ */
+/** Rellena tramos largos con puntos cada ~6px: así el suavizado Catmull-Rom no se pasa de largo en las uniones. */
+function densificar(pts: [number, number][]) {
+  const out: [number, number][] = []
+  pts.forEach(([x, y], i) => {
+    const [nx, ny] = pts[(i + 1) % pts.length]
+    const n = Math.max(1, Math.ceil(Math.hypot(nx - x, ny - y) / 6))
+    for (let k = 0; k < n; k++) out.push([x + ((nx - x) * k) / n, y + ((ny - y) * k) / n])
+  })
+  pts.splice(0, pts.length, ...out)
+}
+
+function rectG2(g: Geo, p: number, xc: number): [number, number][] {
+  const { y0, fondoGota } = bordes(g)
+  const izq = 0
+  const der = g.w
+  const top = -40 // borde superior fuera de pantalla: arriba sin esquinas
+  const base = y0 - 5 // hueco mínimo con la barra
+  const r = R * 1.4 // esquinas de la lámina
+  const rt = 20 // esquinas de la pestaña
+  const f = 12 // curva cóncava donde la pestaña se une a la lámina
+  const b = Math.min(38, g.w / 10 - 2) // semiancho de la pestaña
+  const pts: [number, number][] = []
+  // Superelipse n=4 (G2): |cos|^0.5 en vez de cos
+  const sup = (cx: number, cy: number, rad: number, desde: number, hasta: number, filtro = (_x: number) => true) => {
+    for (let k = 0; k <= 8; k++) {
+      const a = desde + (k / 8) * (hasta - desde)
+      const c = Math.cos(a)
+      const sn = Math.sin(a)
+      const x = cx + Math.sign(c) * Math.abs(c) ** 0.5 * rad
+      if (filtro(x)) pts.push([x, cy + Math.sign(sn) * Math.abs(sn) ** 0.5 * rad])
+    }
+  }
+  // Cerca de un borde, la esquina de la lámina y la curva de unión se achican de forma continua (k: 1 → 0)
+  // y el lado de afuera de la pestaña se estira hasta el borde: sin saltos al moverse entre pestañas.
+  const lado = (libre: number) => Math.min(1, Math.max(0, libre / (r + f)))
+  const libreDer = der - (xc + b)
+  const libreIzq = xc - b - izq
+  const kDer = lado(libreDer)
+  const kIzq = lado(libreIzq)
+  const tDer = Math.min(der, xc + b + (1 - kDer) * Math.max(0, libreDer))
+  const tIzq = Math.max(izq, xc - b - (1 - kIzq) * Math.max(0, libreIzq))
+  const rDer = r * kDer
+  const fDer = f * kDer
+  const rIzq = r * kIzq
+  const fIzq = f * kIzq
+  sup(der - r, top + r, r, -Math.PI / 2, 0)
+  pts.push([der, base - rDer])
+  sup(der - rDer, base - rDer, rDer, 0, Math.PI / 2, (x) => x > tDer + fDer)
+  sup(tDer + fDer, base + fDer, fDer, -Math.PI / 2, -Math.PI)
+  sup(tDer - rt, fondoGota - rt, rt, 0, Math.PI / 2)
+  sup(tIzq + rt, fondoGota - rt, rt, Math.PI / 2, Math.PI)
+  sup(tIzq - fIzq, base + fIzq, fIzq, 0, -Math.PI / 2)
+  sup(izq + rIzq, base - rIzq, rIzq, Math.PI / 2, Math.PI, (x) => x < tIzq - fIzq)
+  pts.push([izq, base - rIzq])
+  sup(izq + r, top + r, r, Math.PI, Math.PI * 1.5)
+  for (const q of pts) q[0] = Math.min(der, Math.max(izq, q[0]))
+  densificar(pts)
+  if (p >= 1) return pts
+  const e = Math.max(0, p)
+  return pts.map(([x, y]) => [xc + (x - xc) * e, fondoGota + (y - fondoGota) * e])
+}
+
 /** Reels: sin lámina, la gota es una burbuja suelta dentro de la barra (no tiene de dónde colgar). */
 function gotaSuelta(g: Geo, xc: number, t: number, s: number): [number, number][] {
   const { y0, fondoGota } = bordes(g)
@@ -136,21 +202,21 @@ const TINTE = 'color-mix(in srgb, var(--md-sys-color-surface) 62%, black)'
  * Borde del vidrio, por ENCIMA del contenido: el contenido se funde con el tinte hacia el borde (no hay
  * corte brusco) y encima va el filo de luz. Trazos anchos recortados a la mitad interior = degradé barato.
  */
-function Borde({ registrar }: { registrar: (el: SVGElement | null) => void }) {
+function Borde({ registrar, sufijo = 'a' }: { registrar: (el: SVGElement | null) => void; sufijo?: string }) {
   return (
     <>
       <defs>
-        <clipPath id="blob-clip-borde">
+        <clipPath id={`blob-clip-borde-${sufijo}`}>
           <path ref={registrar} data-blob="d" />
         </clipPath>
       </defs>
-      <g clipPath="url(#blob-clip-borde)" fill="none" style={{ stroke: TINTE }}>
+      <g clipPath={`url(#blob-clip-borde-${sufijo})`} fill="none" style={{ stroke: TINTE }}>
         {/* 8 trazos superpuestos: el tinte crece suave hacia el borde (sin escalones visibles) */}
         <path ref={registrar} data-blob="d" strokeOpacity="0.14" strokeWidth="22" />
         <path ref={registrar} data-blob="d" strokeOpacity="0.14" strokeWidth="16" />
         <path ref={registrar} data-blob="d" strokeOpacity="0.14" strokeWidth="11" />
         <path ref={registrar} data-blob="d" strokeOpacity="0.14" strokeWidth="6" />
-        <path ref={registrar} data-blob="d" stroke="white" style={{ stroke: 'white' }} strokeOpacity="0.12" strokeWidth="2.5" />
+        <path ref={registrar} data-blob="d" stroke="white" style={{ stroke: 'white' }} strokeOpacity="0.22" strokeWidth="3" />
       </g>
     </>
   )
@@ -197,12 +263,12 @@ function Vidrio({ sufijo, luces, registrar }: { sufijo: string; luces: Luz[]; re
 
 /**
  * `lamina=false` (Reels): solo la gota dentro de la barra; el contenido queda entero y sin máscara.
- * Con lámina, el blob también recorta (máscara) al elemento `#contenido-blob`: nada se sale del borde.
+ * Con lámina, una capa fija tapa todo lo que queda fuera del blob: nada se ve más allá del borde.
  */
-export function NavBlob({ index, count, lamina = true }: { index: number; count: number; lamina?: boolean }) {
+export function NavBlob({ index, count, lamina = true, solido = false }: { index: number; count: number; lamina?: boolean; solido?: boolean }) {
   const nodos = useRef(new Set<SVGElement>())
   const [geo, setGeo] = useState<Geo | null>(null)
-  const estado = useRef({ x: -1, v: 0, p: 0, pv: 0, raf: 0, ultimo: 0, top: NaN, left: NaN, y0: NaN })
+  const estado = useRef({ x: -1, v: 0, p: 0, pv: 0, raf: 0, ultimo: 0, y0: NaN })
   const objetivo = useRef(0)
   const luces = useLuces((s) => s.luces)
   const registrar = (el: SVGElement | null) => {
@@ -245,27 +311,18 @@ export function NavBlob({ index, count, lamina = true }: { index: number; count:
       const { y0, iconoY } = bordes(g)
       const barraMovida = y0 !== st.y0
       const moviendo = Math.abs(st.v) > 2 || Math.abs(1 - st.p) > 0.002 || barraMovida
-      const cont = lamina && window.innerWidth < 768 ? document.getElementById('contenido-blob') : null
-      const caja = cont?.getBoundingClientRect()
-      const desplazo = caja ? caja.top !== st.top || caja.left !== st.left : false
-      // en reposo basta ~20 fps, salvo que el contenido se haya movido (scroll): la máscara no puede quedar atrás
-      if (!moviendo && !desplazo && now - st.ultimo < 48) return
+      // en reposo basta ~20 fps
+      if (!moviendo && now - st.ultimo < 48) return
       if (reducido && st.ultimo > 0) return
       st.ultimo = now
       const t = reducido ? 0 : now / 1000
       const estira = Math.min(22, Math.abs(st.v) * 0.02)
-      const pts = lamina ? contorno(g, st.x, t, Math.min(1, st.p), estira) : gotaSuelta(g, st.x, t, estira)
+      const pts = !lamina ? gotaSuelta(g, st.x, solido ? 0 : t, estira) : solido ? rectG2(g, Math.min(1, st.p), st.x) : contorno(g, st.x, t, Math.min(1, st.p), estira)
       const d = suavizar(pts)
       if (barraMovida) {
         st.y0 = y0
         const svgB = document.getElementById('nav-blob-barra-svg')
-        if (svgB) svgB.style.clipPath = `inset(${y0}px 0 0 0 round 28px 28px 0 0)`
-      }
-      if (cont && caja) {
-        st.top = caja.top
-        st.left = caja.left
-        // clip-path usa coordenadas del elemento: se corre el contorno por su posición en pantalla
-        cont.style.clipPath = `path('${suavizar(pts.map(([x, y]) => [x - caja.left, y - caja.top]))}')`
+        if (svgB) svgB.style.clipPath = `inset(${y0}px 0 0 0 round ${solido ? 0 : 28}px ${solido ? 0 : 28}px 0 0)`
       }
       for (const el of nodos.current) {
         if (!el.isConnected) {
@@ -273,6 +330,7 @@ export function NavBlob({ index, count, lamina = true }: { index: number; count:
           continue
         }
         if (el.dataset.blob === 'd') el.setAttribute('d', d)
+        else if (el.dataset.blob === 'fuera') el.setAttribute('d', `M-99,-99H${g.w + 99}V${g.h + 99}H-99Z${d}`)
         else {
           el.setAttribute('cx', st.x.toFixed(1))
           el.setAttribute('cy', iconoY.toFixed(1))
@@ -284,11 +342,9 @@ export function NavBlob({ index, count, lamina = true }: { index: number; count:
     st.raf = requestAnimationFrame(paso)
     return () => {
       cancelAnimationFrame(st.raf)
-      const cont = document.getElementById('contenido-blob')
-      if (cont) cont.style.clipPath = ''
-      st.top = st.left = st.y0 = NaN
+      st.y0 = NaN
     }
-  }, [geo, index, count, luces, lamina])
+  }, [geo, index, count, luces, lamina, solido])
 
   const y0 = geo ? bordes(geo).y0 : 0
   return (
@@ -300,8 +356,14 @@ export function NavBlob({ index, count, lamina = true }: { index: number; count:
         </svg>
       )}
       {lamina && (
+        // Tapa lo que queda fuera del blob. Es fija (no un clip-path sobre el contenido que scrollea), así no se desfasa al scrollear.
+        <svg aria-hidden="true" className="pointer-events-none fixed inset-0 z-[11] h-full w-full md:hidden">
+          <path ref={registrar} data-blob="fuera" fillRule="evenodd" fill="#080810" />
+        </svg>
+      )}
+      {lamina && (
         // Por encima del contenido (z-10) y debajo de la topbar: el borde superior queda fuera de la vista.
-        <svg aria-hidden="true" className="pointer-events-none fixed inset-0 z-[11] h-full w-full md:hidden" style={{ clipPath: 'inset(76px 0 0 0)' }}>
+        <svg aria-hidden="true" className="pointer-events-none fixed inset-0 z-[11] h-full w-full md:hidden" style={{ clipPath: solido ? undefined : 'inset(76px 0 0 0)' }}>
           <Borde registrar={registrar} />
         </svg>
       )}
@@ -310,10 +372,30 @@ export function NavBlob({ index, count, lamina = true }: { index: number; count:
         aria-hidden="true"
         id="nav-blob-barra-svg"
         className="barra-fija pointer-events-none fixed inset-0 z-[31] h-full w-full md:hidden"
-        style={{ clipPath: `inset(${y0}px 0 0 0 round 28px 28px 0 0)` }}
+        style={{ clipPath: `inset(${y0}px 0 0 0 round ${solido ? 0 : 28}px ${solido ? 0 : 28}px 0 0)` }}
       >
         <Vidrio sufijo="b" luces={luces} registrar={registrar} />
+        {/* El filo también sobre la barra: si no, la pestaña del ítem activo no se lee como borde */}
+        <Borde sufijo="b" registrar={registrar} />
       </svg>
     </>
   )
+}
+
+/** Self-check: para cada posición de la pestaña, contorno dentro de pantalla y sin saltos entre posiciones vecinas. */
+export function __checkRectG2() {
+  const g: Geo = { w: 375, h: 812, nav: 68, safe: 0 }
+  let prev: [number, number][] | null = null
+  for (let xc = 37.5; xc <= 337.5; xc += 1) {
+    const pts = rectG2(g, 1, xc)
+    for (const [x, y] of pts) if (!Number.isFinite(x) || !Number.isFinite(y) || x < -0.01 || x > g.w + 0.01) throw new Error(`fuera de rango en xc=${xc}`)
+    if (prev) {
+      // misma cantidad de tramos no se garantiza; comparamos el borde inferior de la pestaña
+      const fondo = (ps: [number, number][]) => ps.filter(([, y]) => y > 790).map(([x]) => x)
+      const a = fondo(prev)
+      const b = fondo(pts)
+      if (Math.abs(Math.min(...a) - Math.min(...b)) > 3 || Math.abs(Math.max(...a) - Math.max(...b)) > 3) throw new Error(`salto en xc=${xc}`)
+    }
+    prev = pts
+  }
 }

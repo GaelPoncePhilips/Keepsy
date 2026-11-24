@@ -49,7 +49,7 @@ function Fila({ icon, label, to, onClick, extra, destructive }: { icon: string; 
 export function SettingsPage() {
   const yo = useYo()
   const navigate = useNavigate()
-  const { tema, setTema } = useUi()
+  const { tema, setTema, estilo, setEstilo } = useUi()
   const [dev, setDev] = useState(false)
   const [confirmarPublica, setConfirmarPublica] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -143,6 +143,26 @@ export function SettingsPage() {
           <FilterChip label="Oscuro" icon="dark_mode" selected={tema === 'oscuro'} onClick={() => setTema('oscuro')} />
           <FilterChip label="Sistema" icon="contrast" selected={tema === 'sistema'} onClick={() => setTema('sistema')} />
         </div>
+      </Seccion>
+      <Seccion titulo="Interfaz">
+        <div className="flex flex-wrap gap-2 px-4 py-2">
+          <FilterChip label="Clásica" icon="grid_view" selected={estilo.ui === 'clasica'} onClick={() => setEstilo({ ui: 'clasica' })} />
+          <FilterChip label="Blob" icon="bubble_chart" selected={estilo.ui === 'blob'} onClick={() => setEstilo({ ui: 'blob' })} />
+        </div>
+        {estilo.ui === 'blob' && (
+          <>
+            <p className="type-label-l px-4 pt-2 text-on-surface-variant">Bordes</p>
+            <div className="flex flex-wrap gap-2 px-4 py-2">
+              <FilterChip label="Irregulares" icon="water_drop" selected={estilo.bordes === 'irregulares'} onClick={() => setEstilo({ bordes: 'irregulares' })} />
+              <FilterChip label="Sólidos" icon="rounded_corner" selected={estilo.bordes === 'solidos'} onClick={() => setEstilo({ bordes: 'solidos' })} />
+            </div>
+            <p className="type-label-l px-4 pt-2 text-on-surface-variant">Anillos de stories</p>
+            <div className="flex flex-wrap gap-2 px-4 py-2">
+              <FilterChip label="Con formas" icon="interests" selected={estilo.anillos === 'formas'} onClick={() => setEstilo({ anillos: 'formas' })} />
+              <FilterChip label="Regulares" icon="radio_button_unchecked" selected={estilo.anillos === 'regulares'} onClick={() => setEstilo({ anillos: 'regulares' })} />
+            </div>
+          </>
+        )}
       </Seccion>
       <Seccion titulo="Inicio de sesión">
         <Fila icon="switch_account" label="Cambiar de cuenta (dev)" onClick={() => setDev(true)} />

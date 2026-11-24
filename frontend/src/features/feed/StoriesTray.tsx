@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import type { Anillo } from '../../components/ui/Avatar'
+import { Avatar, type Anillo } from '../../components/ui/Avatar'
+import { useUi } from '../../stores/ui'
 import { Icon } from '../../components/ui/Icon'
 import { useAsync } from '../../lib/hooks'
 import { formaPara, formaPorNombre } from '../../lib/formasM3'
@@ -24,10 +25,14 @@ const FONDO_ANILLO: Partial<Record<Anillo, string>> = {
 }
 
 /** Hueco con forma en el vidrio: foto recortada + borde interior; con anillo opcional. */
-function Hueco({ username, forma, anillo }: { username: string; forma: string; anillo: Anillo }) {
+function Hueco({ username, forma: formaVariada, anillo }: { username: string; forma: string; anillo: Anillo }) {
   const [fallo, setFallo] = useState(false)
+  const { ui, anillos } = useUi((s) => s.estilo)
   const url = avatarUrl(username)
-  const fondo = FONDO_ANILLO[anillo]
+  if (ui === 'clasica') return <Avatar username={username} size={66} anillo={anillo} />
+  const regulares = anillos === 'regulares'
+  const forma = regulares ? formaPorNombre('circle') : formaVariada
+  const fondo = regulares && anillo !== 'ninguno' ? FONDO_ANILLO['sin-ver'] : FONDO_ANILLO[anillo]
   return (
     <span className="relative isolate flex items-center justify-center">
     {/* La foto sigue "detrás" del vidrio: se ve difusa alrededor del hueco */}

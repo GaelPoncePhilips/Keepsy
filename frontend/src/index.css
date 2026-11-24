@@ -667,7 +667,7 @@ select:focus-visible {
 
 /* Móvil: el fondo base es el de la barra inferior; la lámina-blob (NavBlob) pinta la pantalla encima. */
 @media (max-width: 767px) {
-  body {
+  [data-estilo='blob'] body {
     background: #080810; /* hueco entre el blob y la barra */
   }
 }
@@ -824,3 +824,10 @@ select:focus-visible {
   }
 }
 
+
+/* Bordes sólidos: las manchas animadas pasan a rectángulos redondeados G2 quietos */
+[data-bordes='solidos'] :is(.blob, .blob-drift-a, .blob-drift-b, .blob-drift-c, .blob-tile) {
+  animation: none !important;
+  border-radius: 30% !important;
+  corner-shape: squircle;
+}
