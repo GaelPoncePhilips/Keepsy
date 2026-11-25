@@ -37,7 +37,9 @@ POST_COLUMNAS = f"""
     p.tipo, p.url_imagen, p.url_video, p.duracion_seg, p.descripcion, p.fecha_publicacion, p.fecha_edicion,
     (SELECT count(*) FROM likes l_c WHERE l_c.post_id = p.id AND {_no_bloqueado_por_dueno('l_c.usuario_id')}) AS cantidad_likes,
     (SELECT count(*) FROM comentario c_c WHERE c_c.post_id = p.id AND {_no_bloqueado_por_dueno('c_c.usuario_id')}) AS cantidad_comentarios,
-    EXISTS (SELECT 1 FROM likes l_m WHERE l_m.post_id = p.id AND l_m.usuario_id = :yo) AS me_gusta
+    EXISTS (SELECT 1 FROM likes l_m WHERE l_m.post_id = p.id AND l_m.usuario_id = :yo) AS me_gusta,
+    (SELECT count(*) FROM repost r_c WHERE r_c.post_id = p.id AND {activo('r_c.usuario_id')}) AS cantidad_reposts,
+    EXISTS (SELECT 1 FROM repost r_m WHERE r_m.post_id = p.id AND r_m.usuario_id = :yo) AS me_republique
 """
 POST_FROM = "FROM post p JOIN usuario u ON u.id = p.usuario_id AND u.eliminado_en IS NULL"
 NO_BLOQUEADO_POR_DUENO = _no_bloqueado_por_dueno

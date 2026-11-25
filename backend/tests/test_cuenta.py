@@ -157,3 +157,19 @@ def test_notificaciones(usuarios):
     caro.seguir(ana)
     ana.patch(f"/usuarios/{ana.id}", {"es_privada": False})
     assert ("solicitud_aceptada", "ana") in tipos(caro)
+
+
+def test_notificacion_trae_miniatura_y_texto(usuarios):
+    ana, beto, *_ = usuarios
+    post = ana.publicar("hola")
+    beto.post(f"/posts/{post}/comentarios", {"texto": "lindo"})
+    n = ana.get("/notificaciones").json()[0]
+    assert (n["tipo"], n["url_miniatura"], n["texto"]) == ("comentario", "foto.jpg", "lindo")
+
+
+def test_resumen_por_id(usuarios):
+    ana, beto, *_ = usuarios
+    assert beto.get(f"/usuarios/{ana.id}/resumen").json() == {"id": ana.id, "username": "ana", "nombre": "Ana"}
+    ana.post(f"/usuarios/{beto.id}/bloqueo")
+    assert beto.get(f"/usuarios/{ana.id}/resumen").status_code == 404
+    assert beto.get("/usuarios/999999/resumen").status_code == 404

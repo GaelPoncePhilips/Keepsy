@@ -19,6 +19,9 @@ import { api } from './client'
 /** POST /auth/login — body {email, password} → {access_token, token_type} */
 export const login = (body: LoginBody) => api.post<TokenDTO>('/auth/login', body)
 
+/** POST /auth/logout — body {refresh_token} → 204. Revoca la familia del refresh token (solo backend real). */
+export const logout = (refresh_token: string) => api.post<void>('/auth/logout', { refresh_token })
+
 /** GET /auth/me → Usuario (sin password) */
 export const me = () => api.get<Usuario>('/auth/me')
 

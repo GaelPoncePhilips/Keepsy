@@ -35,3 +35,5 @@ class AlbumItem(Base):
     url_imagen = Column(String, nullable=False)
     descripcion = Column(String(500))
     fecha = Column(DateTime, nullable=False, server_default=func.now())
+    tipo = Column(String(5), nullable=False, server_default="foto")  # EXTRA: 'foto' | 'video'
+    url_video = Column(String)

@@ -8,8 +8,8 @@ import { cn } from '../../lib/hooks'
 import { tiempoCorto } from '../../lib/time'
 import { mensajeDeError } from '../../services/client'
 import * as postsApi from '../../services/posts'
-import { agruparHilos, codificar, decodificar, largoVisible, type MediaComentario } from '../../services/temporal/comentariosExtra'
-import { urlDeArchivo } from '../../services/temporal/local'
+import { agruparHilos, codificar, decodificar, type MediaComentario } from '../../services/temporal/comentariosExtra'
+import { subirArchivo } from '../../services/media'
 import { snackbar } from '../../stores/ui'
 import type { Comentario } from '../../types/api'
 import { RichText } from './RichText'
@@ -168,7 +168,9 @@ export function CajaComentario({
   const input = useRef<HTMLInputElement>(null)
   const limpio = texto.trim()
   const hayContenido = limpio.length > 0 || media !== null
-  const valido = hayContenido && limpio.length <= MAX_COMENTARIO
+  // El backend limita el texto guardado (con las marcas de respuesta/multimedia) a MAX_COMENTARIO.
+  const guardado = codificar(limpio || '​', { respuestaA: respondiendoA?.id, media })
+  const valido = hayContenido && guardado.length <= MAX_COMENTARIO
 
   // Al empezar a responder se enfoca la caja con la mención del autor, como Instagram.
   const respId = respondiendoA?.id ?? null
@@ -201,7 +203,7 @@ export function CajaComentario({
       setBusy(false)
     }
   }
-  const excede = limpio.length > MAX_COMENTARIO
+  const excede = guardado.length > MAX_COMENTARIO
   return (
     <div className={className}>
       {respondiendoA && (
@@ -244,7 +246,7 @@ export function CajaComentario({
         />
         {texto.length > 0 && (
           <span className={cn('type-label-s mr-1', excede ? 'text-error' : 'text-on-surface-variant')}>
-            {largoVisible(limpio)}/{MAX_COMENTARIO}
+            {guardado.length}/{MAX_COMENTARIO}
           </span>
         )}
         <input
@@ -254,7 +256,10 @@ export function CajaComentario({
           hidden
           onChange={(e) => {
             const f = e.target.files?.[0]
-            if (f) setMedia({ tipo: 'imagen', valor: urlDeArchivo(f) })
+            if (f)
+              subirArchivo(f)
+                .then((url) => setMedia({ tipo: 'imagen', valor: url }))
+                .catch((err: unknown) => snackbar(`No se pudo subir la foto: ${mensajeDeError(err)}`))
             e.target.value = ''
           }}
         />

@@ -40,8 +40,8 @@ export const useSession = create<SessionState>((set, get) => ({
   },
 
   async login(email, password) {
-    const { access_token } = await usuariosApi.login({ email, password })
-    auth.setToken(access_token)
+    const { access_token, refresh_token } = await usuariosApi.login({ email, password })
+    auth.setTokens(access_token, refresh_token ?? null)
     const u = await usuariosApi.me()
     setTemporalIdentity(u.username)
     limpiarCache()
@@ -49,7 +49,10 @@ export const useSession = create<SessionState>((set, get) => ({
   },
 
   logout() {
-    auth.setToken(null)
+    const refresh = auth.getRefreshToken()
+    // Revoca el refresh token en el backend (best effort: si falla, igual cerramos la sesión local).
+    if (refresh) usuariosApi.logout(refresh).catch(() => {})
+    auth.setTokens(null)
     setTemporalIdentity(null)
     limpiarCache()
     set({ usuario: null, estado: 'anonimo', sesionId: get().sesionId + 1 })

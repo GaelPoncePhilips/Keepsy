@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from src.db.models.album_model import Album, AlbumItem, AlbumMiembro
 from src.dtos.extra_dto import AlbumDTO, AlbumItemDTO, AlbumMiembroDTO
+from src.db.models.notificacion_model import Notificacion
 from src.repositories.notificacion_repository import NotificacionRepository
 from src.repositories.usuario_repository import UsuarioRepository
 from src.utils.errors import BadRequestError, ConflictError, ForbiddenError, NotFoundError
@@ -126,6 +127,10 @@ class AlbumService:
             raise NotFoundError("No es miembro del álbum")
         if usuario_id != yo:
             self._exigir(album_id, yo, admin=True)
+        if objetivo.estado == "pendiente":  # invitación rechazada o cancelada: su notificación ya no sirve
+            self.db.query(Notificacion).filter(
+                Notificacion.usuario_id == usuario_id, Notificacion.album_id == album_id,
+                Notificacion.tipo == "invitacion_album").delete(synchronize_session=False)
         self.db.delete(objetivo)
         self.db.flush()
         if objetivo.rol == "admin" and objetivo.estado == "aceptado":
@@ -143,7 +148,35 @@ class AlbumService:
         self._visible(album_id, yo)
         items = self.db.query(AlbumItem).filter(AlbumItem.album_id == album_id).order_by(
             AlbumItem.fecha.desc(), AlbumItem.id.desc()).limit(limit).offset(offset).all()
-        return [AlbumItemDTO.model_validate(i) for i in items]
+        return self._con_social(items, yo)
+
+    def _con_social(self, items: list[AlbumItem], yo: int) -> list[AlbumItemDTO]:
+        """Suma likes, me_gusta y comentarios (de cuentas activas) a cada item."""
+        if not items:
+            return []
+        filas = self.db.execute(text(
+            """SELECT i.id,
+                      (SELECT count(*) FROM album_item_like l JOIN usuario u ON u.id = l.usuario_id
+                        WHERE l.item_id = i.id AND u.eliminado_en IS NULL) AS cantidad_likes,
+                      EXISTS (SELECT 1 FROM album_item_like l WHERE l.item_id = i.id AND l.usuario_id = :yo) AS me_gusta,
+                      (SELECT count(*) FROM album_item_comentario c JOIN usuario u ON u.id = c.usuario_id
+                        WHERE c.item_id = i.id AND u.eliminado_en IS NULL) AS cantidad_comentarios
+               FROM album_item i WHERE i.id = ANY(:ids)"""),
+            {"ids": [i.id for i in items], "yo": yo}).mappings().all()
+        social = {f["id"]: dict(f) for f in filas}
+        return [AlbumItemDTO.model_validate(i).model_copy(update={k: v for k, v in social[i.id].items() if k != "id"})
+                for i in items]
+
+    def item_visible(self, album_id: int, item_id: int, yo: int) -> AlbumItem:
+        self._visible(album_id, yo)
+        item = self.db.get(AlbumItem, item_id)
+        if item is None or item.album_id != album_id:
+            raise NotFoundError("Item no encontrado")
+        return item
+
+    def es_admin(self, album_id: int, yo: int) -> bool:
+        m = self._miembro(album_id, yo)
+        return m is not None and m.estado == "aceptado" and m.rol == "admin"
 
     def subir(self, album_id: int, yo: int, campos: dict) -> AlbumItemDTO:
         self._exigir(album_id, yo)
@@ -151,7 +184,7 @@ class AlbumService:
         self.db.add(item)
         self.db.commit()
         self.db.refresh(item)
-        return AlbumItemDTO.model_validate(item)
+        return self._con_social([item], yo)[0]
 
     def borrar_item(self, album_id: int, yo: int, item_id: int) -> None:
         m = self._exigir(album_id, yo)

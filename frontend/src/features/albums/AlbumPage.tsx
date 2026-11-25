@@ -17,11 +17,12 @@ import * as albumsApi from '../../services/albums'
 import { ApiError, mensajeDeError } from '../../services/client'
 import { usuarioPorId } from '../../services/temporal'
 import {
-  alternarLikeItem,
-  borrarComentarioItem,
-  comentariosDeItem,
-  comentarItem,
-  likesDeItem,
+  borrarComentarioItemApi,
+  comentarItemApi,
+  likeItem,
+  likesItem,
+  listarComentariosItem,
+  socialInicial,
 } from '../../services/temporal/albumSocial'
 import { useBadges } from '../../stores/badges'
 import { useYo } from '../../stores/session'
@@ -328,27 +329,33 @@ function ItemViewer({
   const yo = useYo()
   const autor = useAutor(item.usuario_id, miembros)
   const [confirm, setConfirm] = useState(false)
-  // TEMPORAL (hueco 15): los ítems se comportan como publicaciones (likes y comentarios locales).
-  const [likes, setLikes] = useState(() => likesDeItem(item.id))
-  const [comentariosN, setComentariosN] = useState(() => comentariosDeItem(item.id).length)
+  // Los ítems se comportan como publicaciones: likes y comentarios (backend real o, con el mock, locales).
+  const [inicial] = useState(() => socialInicial(item, yo.id))
+  const [likes, setLikes] = useState({ cantidad: inicial.cantidad_likes, meGusta: inicial.me_gusta })
+  const [comentariosN, setComentariosN] = useState(inicial.cantidad_comentarios)
   const [sheet, setSheet] = useState<'comentarios' | 'likes' | null>(null)
   const [corazon, setCorazon] = useState(0)
-  const meGusta = likes.includes(yo.id)
+  const meGusta = likes.meGusta
   const fuente = useMemo<FuenteComentarios>(
     () => ({
-      listar: () => Promise.resolve(comentariosDeItem(item.id)),
-      comentar: (t) => Promise.resolve(comentarItem(item.id, yo, t)),
-      borrar: (id) => {
-        borrarComentarioItem(item.id, id)
-        return Promise.resolve()
-      },
+      listar: () => listarComentariosItem(item),
+      comentar: (t) => comentarItemApi(item, yo, t),
+      borrar: (id) => borrarComentarioItemApi(item, id),
     }),
-    [item.id, yo],
+    [item, yo],
   )
   const alternarLike = (forzar?: boolean) => {
     if (forzar === true && meGusta) return
-    setLikes(alternarLikeItem(item.id, yo.id))
-    vibrar(meGusta && forzar !== true ? 'tick' : 'click')
+    const quiero = !meGusta
+    const antes = likes
+    setLikes({ cantidad: antes.cantidad + (quiero ? 1 : -1), meGusta: quiero })
+    vibrar(quiero ? 'click' : 'tick')
+    likeItem(item, yo.id, quiero)
+      .then((r) => setLikes({ cantidad: r.cantidad_likes, meGusta: r.me_gusta }))
+      .catch((e: unknown) => {
+        setLikes(antes)
+        snackbar(mensajeDeError(e))
+      })
   }
   const doble = () => {
     setCorazon((n) => n + 1)
@@ -408,9 +415,9 @@ function ItemViewer({
           </div>
         </div>
         <div className="space-y-1 px-4 pb-3">
-          {likes.length > 0 && (
+          {likes.cantidad > 0 && (
             <button type="button" className="type-label-l emphasized font-semibold" onClick={() => setSheet('likes')}>
-              {numeroCorto(likes.length)} Me gusta
+              {numeroCorto(likes.cantidad)} Me gusta
             </button>
           )}
           {item.descripcion && <p className="type-body-m break-words">{item.descripcion}</p>}
@@ -434,7 +441,7 @@ function ItemViewer({
         postId={item.id}
         open={sheet === 'likes'}
         onClose={() => setSheet(null)}
-        cargar={() => Promise.all(likes.map((id) => usuarioPorId(id)))}
+        cargar={() => likesItem(item, usuarioPorId)}
       />
       <Confirm
         open={confirm}

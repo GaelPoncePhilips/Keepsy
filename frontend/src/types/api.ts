@@ -19,6 +19,9 @@ export interface LoginBody {
 export interface TokenDTO {
   access_token: string
   token_type: string
+  /** Solo el backend real: dura REFRESH_TOKEN_DIAS y rota en cada /auth/refresh. */
+  refresh_token?: string
+  expira_en_segundos?: number
 }
 
 // ---------- Usuarios
@@ -222,6 +225,10 @@ export interface AlbumItem {
   tipo?: 'foto' | 'video'
   /** TEMPORAL (hueco 3) */
   url_video?: string | null
+  /** Backend real: likes y comentarios del ítem. */
+  cantidad_likes?: number
+  me_gusta?: boolean
+  cantidad_comentarios?: number
 }
 export interface CreateAlbumItemBody {
   url_imagen: string

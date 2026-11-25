@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from src.dtos.usuario_dto import UsuarioResumenDTO
+
 
 class CreatePostDTO(BaseModel):
     usuario_id: int
@@ -42,6 +44,11 @@ class PostDetalleDTO(BaseModel):
     me_gusta: bool
     fecha_edicion: datetime | None = None
     motivo: str | None = None
+    cantidad_reposts: int = 0
+    me_republique: bool = False
+    # Solo en listas de republicaciones: quién lo republicó y cuándo.
+    repostado_por: UsuarioResumenDTO | None = None
+    fecha_repost: datetime | None = None
 
 
 class ComentarioDTO(BaseModel):

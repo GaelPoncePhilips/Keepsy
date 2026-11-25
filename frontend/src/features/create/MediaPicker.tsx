@@ -1,10 +1,14 @@
-// TEMPORAL (hueco 4): selector de archivo que genera una URL de objeto, o una imagen/video de muestra.
+// Selector de foto/video: sube el archivo con POST /media (con el mock, URL de objeto) o usa una muestra.
 import { useRef, useState } from 'react'
 import { Button } from '../../components/ui/Button'
 import { Icon } from '../../components/ui/Icon'
 import { IconButton } from '../../components/ui/IconButton'
 import { VIDEOS } from '../../mocks/seed'
-import { urlAleatoria, urlDeArchivo } from '../../services/temporal/local'
+import { env } from '../../config/env'
+import { mensajeDeError } from '../../services/client'
+import { dataUrlABlob, subirArchivo } from '../../services/media'
+import { urlAleatoria } from '../../services/temporal/local'
+import { snackbar } from '../../stores/ui'
 
 export type TipoMedia = 'foto' | 'video'
 
@@ -18,7 +22,24 @@ export interface MediaElegida {
   duracion_seg: number | null
 }
 
-/** Lee duración y captura un frame como portada. Si falla, devuelve portada aleatoria. */
+/**
+ * Portada de respaldo si no se puede capturar un frame del video. Con el mock, una imagen aleatoria;
+ * con el backend real, un fondo liso generado (se sube como cualquier portada): nada de fotos ajenas.
+ */
+function portadaDeRespaldo(): string {
+  if (env.useMock) return urlAleatoria(1080, 1920)
+  const c = document.createElement('canvas')
+  c.width = 540
+  c.height = 960
+  const g = c.getContext('2d')
+  if (g) {
+    g.fillStyle = '#1c1b1f'
+    g.fillRect(0, 0, c.width, c.height)
+  }
+  return c.toDataURL('image/jpeg', 0.8)
+}
+
+/** Lee duración y captura un frame como portada. Si falla, devuelve una portada de respaldo. */
 function analizarVideo(url: string): Promise<{ duracion: number | null; portada: string }> {
   return new Promise((resolve) => {
     const v = document.createElement('video')
@@ -35,8 +56,8 @@ function analizarVideo(url: string): Promise<{ duracion: number | null; portada:
       v.load()
       resolve({ duracion, portada })
     }
-    timer = window.setTimeout(() => fin(Number.isFinite(v.duration) ? Math.round(v.duration) : null, urlAleatoria(1080, 1920)), 6000)
-    v.onerror = () => fin(null, urlAleatoria(1080, 1920))
+    timer = window.setTimeout(() => fin(Number.isFinite(v.duration) ? Math.round(v.duration) : null, portadaDeRespaldo()), 6000)
+    v.onerror = () => fin(null, portadaDeRespaldo())
     v.onloadedmetadata = () => {
       v.currentTime = Math.min(0.5, (v.duration || 1) / 2)
     }
@@ -49,7 +70,7 @@ function analizarVideo(url: string): Promise<{ duracion: number | null; portada:
         c.getContext('2d')?.drawImage(v, 0, 0, c.width, c.height)
         fin(dur, c.toDataURL('image/jpeg', 0.8))
       } catch {
-        fin(dur, urlAleatoria(1080, 1920))
+        fin(dur, portadaDeRespaldo())
       }
     }
     v.src = url
@@ -57,7 +78,7 @@ function analizarVideo(url: string): Promise<{ duracion: number | null; portada:
 }
 
 /**
- * TEMPORAL (hueco 4): selector de archivo que genera una URL de objeto, o una imagen/video de muestra.
+ * Selector de archivo (se sube con POST /media) o imagen/video de muestra.
  * accept: 'foto' | 'video' | 'ambos'. aspect: proporción de la vista previa (CSS aspect-ratio).
  */
 export function MediaPicker({
@@ -76,14 +97,25 @@ export function MediaPicker({
   const mime = accept === 'foto' ? 'image/*' : accept === 'video' ? 'video/*' : 'image/*,video/*'
 
   const elegirArchivo = async (file: File) => {
-    const url = urlDeArchivo(file)
-    if (file.type.startsWith('video/')) {
-      setCargando(true)
-      const { duracion, portada } = await analizarVideo(url)
+    setCargando(true)
+    try {
+      if (file.type.startsWith('video/')) {
+        // Duración y portada se sacan del archivo local; después se suben video y portada.
+        const local = URL.createObjectURL(file)
+        const { duracion, portada } = await analizarVideo(local)
+        URL.revokeObjectURL(local)
+        const [urlVideo, urlPortada] = await Promise.all([
+          subirArchivo(file),
+          portada.startsWith('data:') ? dataUrlABlob(portada).then((b) => subirArchivo(b, 'portada.jpg')) : Promise.resolve(portada),
+        ])
+        onChange({ tipo: 'video', url_imagen: urlPortada, url_video: urlVideo, duracion_seg: duracion })
+      } else {
+        onChange({ tipo: 'foto', url_imagen: await subirArchivo(file), url_video: null, duracion_seg: null })
+      }
+    } catch (e) {
+      snackbar(`No se pudo subir el archivo: ${mensajeDeError(e)}`)
+    } finally {
       setCargando(false)
-      onChange({ tipo: 'video', url_imagen: portada, url_video: url, duracion_seg: duracion })
-    } else {
-      onChange({ tipo: 'foto', url_imagen: url, url_video: null, duracion_seg: null })
     }
   }
 
@@ -135,11 +167,14 @@ export function MediaPicker({
             }}
           />
           <Button icon="upload" disabled={cargando} onClick={() => inputRef.current?.click()}>
-            {cargando ? 'Procesando…' : 'Desde tu dispositivo'}
+            {cargando ? 'Subiendo…' : 'Desde tu dispositivo'}
           </Button>
-          <Button variant="tonal" disabled={cargando} onClick={muestra}>
-            Usar una de muestra
-          </Button>
+          {/* Muestras (picsum / videos de prueba) solo con el mock: con el backend real se publicaría contenido ajeno. */}
+          {env.useMock && (
+            <Button variant="tonal" disabled={cargando} onClick={muestra}>
+              Usar una de muestra
+            </Button>
+          )}
         </div>
       )}
     </div>

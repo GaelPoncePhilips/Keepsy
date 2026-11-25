@@ -25,7 +25,7 @@ from sqlalchemy import text  # noqa: E402
 from src.app import app  # noqa: E402
 from src.db.connection import engine  # noqa: E402
 
-SCHEMA = (Path(__file__).parent.parent / "src" / "db" / "tables.sql").read_text()
+SCHEMA = (Path(__file__).parent.parent / "src" / "db" / "tables.sql").read_text(encoding="utf-8")
 
 
 @pytest.fixture(autouse=True)

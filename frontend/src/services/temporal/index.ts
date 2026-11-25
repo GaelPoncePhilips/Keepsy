@@ -1,15 +1,28 @@
 // TEMPORAL — servicios de endpoints que el contrato no define todavía (docs/TEMPORAL.md).
 // Cada uno responde desde el mock aunque VITE_USE_MOCK=false mientras su flag esté activo.
-import { temporal } from '../../config/env'
+import { env, temporal } from '../../config/env'
 import type { Paginacion, Post, UsuarioResumen } from '../../types/api'
-import type { CantidadNoLeidas, Notificacion } from '../../types/temporal'
+import type { CantidadNoLeidas, Notificacion, TipoNotificacion } from '../../types/temporal'
 import { temporalRequest } from '../client'
 
 // ---------- Hueco 1: notificaciones
 
-/** TEMPORAL GET /notificaciones?limit&offset → Notificacion[] (fecha desc) */
-export const notificaciones = (p: Paginacion = {}) =>
-  temporalRequest<Notificacion[]>(temporal.notificaciones, 'GET', '/notificaciones', { query: { limit: 50, ...p } })
+/** Forma de GET /notificaciones del backend real: `solicitud` en vez de `solicitud_seguimiento`. */
+type NotificacionBackend = Omit<Notificacion, 'tipo'> & { tipo: TipoNotificacion | 'solicitud' }
+const usaMock = () => env.useMock || temporal.notificaciones
+
+/** GET /notificaciones?limit&offset → Notificacion[] (fecha desc) */
+export async function notificaciones(p: Paginacion = {}): Promise<Notificacion[]> {
+  const lista = await temporalRequest<NotificacionBackend[]>(temporal.notificaciones, 'GET', '/notificaciones', {
+    query: { limit: 50, ...p },
+  })
+  return lista.map((n) => ({
+    ...n,
+    tipo: n.tipo === 'solicitud' ? 'solicitud_seguimiento' : n.tipo,
+    url_miniatura: n.url_miniatura ?? null,
+    texto: n.texto ?? null,
+  }))
+}
 
 /** TEMPORAL POST /notificaciones/{id}/leida → 204 */
 export const marcarNotificacionLeida = (id: number) =>
@@ -18,9 +31,12 @@ export const marcarNotificacionLeida = (id: number) =>
 /** TEMPORAL POST /notificaciones/leidas → 204 (marca todas) */
 export const marcarTodasLeidas = () => temporalRequest<void>(temporal.notificaciones, 'POST', '/notificaciones/leidas', { body: {} })
 
-/** TEMPORAL GET /notificaciones/no-leidas/cantidad → {cantidad} */
-export const cantidadNoLeidas = () =>
-  temporalRequest<CantidadNoLeidas>(temporal.notificaciones, 'GET', '/notificaciones/no-leidas/cantidad')
+/** Mock: GET /notificaciones/no-leidas/cantidad → {cantidad}. Backend real: GET /notificaciones/no-leidas → {no_leidas}. */
+export async function cantidadNoLeidas(): Promise<CantidadNoLeidas> {
+  if (usaMock()) return temporalRequest<CantidadNoLeidas>(true, 'GET', '/notificaciones/no-leidas/cantidad')
+  const r = await temporalRequest<{ no_leidas: number }>(false, 'GET', '/notificaciones/no-leidas')
+  return { cantidad: r.no_leidas }
+}
 
 // ---------- Hueco 2: búsqueda de usuarios
 

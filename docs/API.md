@@ -31,6 +31,7 @@ El access token dura 15 min (`ACCESS_TOKEN_MINUTOS`) y el refresh token 30 días
 |---|---|---|---|
 | POST | `/usuarios` | público | Registro `{username, email, password, nombre, bio?}`. 409 si username/email existen. Arranca pública. |
 | GET | `/usuarios?q=` | todos | Buscar por prefijo de username o nombre (sin bloqueados ni cuentas borradas). Orden: exacto, seguidos, populares. |
+| GET | `/usuarios/{id}/resumen` | todos | `{id, username, nombre}` por id (para datos que solo traen el id). 404 si no existe, está borrada o hay bloqueo. |
 | GET | `/usuarios/{username}` | todos | Perfil + `cantidad_posts`, `cantidad_seguidores`, `cantidad_seguidos`, `relacion` (`siguiendo`/`pendiente`/`ninguna`). |
 | PATCH | `/usuarios/{id}` | dueño | `{nombre?, bio?, es_privada?, reels_desactivados?}`. Privada → pública acepta las pendientes. |
 | PATCH | `/usuarios/{id}/password` | dueño | `{actual, nueva}`. Cierra las demás sesiones y devuelve tokens nuevos. |
@@ -177,11 +178,22 @@ Tipos: `seguidor_nuevo`, `solicitud`, `solicitud_aceptada`, `like`, `comentario`
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| GET | `/notificaciones?solo_no_leidas=false` | Más nuevas primero, con `actor` y `post_id` / `comentario_id` / `album_id` |
+| GET | `/notificaciones?solo_no_leidas=false` | Más nuevas primero, con `actor`, `post_id` / `comentario_id` / `album_id`, `url_miniatura` (imagen del post o portada del álbum) y `texto` (texto del comentario o título del álbum) |
 | GET | `/notificaciones/no-leidas` | `{no_leidas}` para el globito |
 | POST | `/notificaciones/leidas` | Marca todas como leídas |
 | POST | `/notificaciones/{id}/leida` | Marca una |
 
+## EXTRA: Republicaciones
+
+Todo `Post` trae `cantidad_reposts` y `me_republique`. En las listas de republicaciones, además `repostado_por` (`{id, username, nombre}`) y `fecha_repost`.
+
+| Método | Ruta | Quién | Descripción |
+|---|---|---|---|
+| POST | `/posts/{id}/repost` | quien puede ver el post | Republica (idempotente) → `{cantidad_reposts, me_republique}`. 403/404 como `GET /posts/{id}` |
+| DELETE | `/posts/{id}/repost` | todos | Quita la republicación → `{cantidad_reposts, me_republique}` |
+| GET | `/usuarios/{id}/reposts` | según privacidad | Posts que republicó `{id}`, más nuevos primero (solo los que puedo ver) |
+| GET | `/usuarios/{id}/feed/reposts` | dueño | Republicaciones de las cuentas que sigo, para mezclar con el feed |
+
 ## Configuración (`.env`)
 
-`CORS_ORIGINS` (orígenes del frontend separados por coma, default `http://localhost:3000`), `MEDIA_DIR`, `MEDIA_URL`, `ACCESS_TOKEN_MINUTOS`, `REFRESH_TOKEN_DIAS`.
+`CORS_ORIGINS` (orígenes del frontend separados por coma, default `http://localhost:3000`), `MEDIA_DIR`, `MEDIA_URL` (puede ser relativa, p. ej. `/media`, si el frontend hace de proxy de `/media` como el de Vite), `ACCESS_TOKEN_MINUTOS`, `REFRESH_TOKEN_DIAS`.

@@ -2,12 +2,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from src.schemas.tipos import UrlMedia
+
 
 class CreatePostSchema(BaseModel):
     tipo: Literal["foto", "reel"] = "foto"
-    url_imagen: str = Field(min_length=1)
-    url_video: str | None = Field(default=None, min_length=1)
-    duracion_seg: int | None = Field(default=None, gt=0)
+    url_imagen: UrlMedia
+    url_video: UrlMedia | None = None
+    duracion_seg: int | None = Field(default=None, gt=0, le=3600)
     descripcion: str | None = Field(default=None, max_length=2200)
 
     @model_validator(mode="after")
@@ -21,7 +23,7 @@ class CreatePostSchema(BaseModel):
 
 class UpdatePostSchema(BaseModel):
     """Solo se edita la descripción (la imagen/video no cambia, como en Instagram)."""
-    descripcion: str | None = Field(default=None, max_length=2200)
+    descripcion: str | None = Field(max_length=2200)  # obligatorio (null la borra): {} no la pisa
 
 
 class CreateComentarioSchema(BaseModel):

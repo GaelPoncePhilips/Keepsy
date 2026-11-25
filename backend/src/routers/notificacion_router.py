@@ -22,6 +22,8 @@ class NotificacionDTO(BaseModel):
     post_id: int | None
     comentario_id: int | None
     album_id: int | None
+    url_miniatura: str | None = None  # imagen del post o portada del álbum
+    texto: str | None = None          # texto del comentario o título del álbum
     leida: bool
     fecha: datetime
 

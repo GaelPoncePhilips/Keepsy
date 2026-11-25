@@ -29,8 +29,13 @@ class NotificacionRepository:
     def listar(self, usuario_id: int, solo_no_leidas: bool, limit: int, offset: int) -> list[dict]:
         return [dict(r) for r in self.db.execute(text(
             f"""SELECT n.id, n.tipo, n.post_id, n.comentario_id, n.album_id, n.leida, n.fecha,
-                       u.id AS actor_id, u.username AS actor_username, u.nombre AS actor_nombre
+                       u.id AS actor_id, u.username AS actor_username, u.nombre AS actor_nombre,
+                       COALESCE(p.url_imagen, a.portada_url) AS url_miniatura,
+                       COALESCE(c.texto, a.titulo) AS texto
                 FROM notificacion n JOIN usuario u ON u.id = n.actor_id
+                LEFT JOIN post p ON p.id = n.post_id
+                LEFT JOIN comentario c ON c.id = n.comentario_id
+                LEFT JOIN album a ON a.id = n.album_id
                 WHERE n.usuario_id = :uid AND (NOT :solo OR NOT n.leida) AND {VISIBLE}
                 ORDER BY n.fecha DESC, n.id DESC LIMIT :limit OFFSET :offset"""),
             {"uid": usuario_id, "solo": solo_no_leidas, "limit": limit, "offset": offset}).mappings().all()]

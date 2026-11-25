@@ -8,7 +8,11 @@ export default defineConfig(({ mode }) => {
   // Proxy /api → backend: evita CORS (el backend no lo configura) y funciona también desde el celular.
   // Para usarlo: VITE_API_URL=/api. Destino configurable con BACKEND_URL.
   const backend = env.BACKEND_URL || 'http://localhost:8000'
-  const proxy = { '/api': { target: backend, changeOrigin: true } }
+  // /media: archivos subidos con POST /api/media (con MEDIA_URL=/media el backend devuelve URLs relativas).
+  const proxy = {
+    '/api': { target: backend, changeOrigin: true },
+    '/media': { target: backend, changeOrigin: true },
+  }
   return {
     plugins: [react(), tailwindcss()],
     server: {

@@ -21,27 +21,42 @@ export class ApiError extends Error implements ApiErrorBody {
 }
 
 const TOKEN_KEY = 'keepsy.token'
+const REFRESH_KEY = 'keepsy.refresh'
 
-let token: string | null = (() => {
+function leer(key: string): string | null {
   try {
-    return localStorage.getItem(TOKEN_KEY)
+    return localStorage.getItem(key)
   } catch {
     return null
   }
-})()
+}
+
+function guardar(key: string, v: string | null): void {
+  try {
+    if (v) localStorage.setItem(key, v)
+    else localStorage.removeItem(key)
+  } catch {
+    /* almacenamiento no disponible */
+  }
+}
+
+let token: string | null = leer(TOKEN_KEY)
+let refreshToken: string | null = leer(REFRESH_KEY)
 
 const unauthorizedListeners = new Set<() => void>()
 
 export const auth = {
   getToken: (): string | null => token,
+  getRefreshToken: (): string | null => refreshToken,
+  /** Guarda access + refresh. Sin refresh (mock) se borra el anterior. */
+  setTokens(access: string | null, refresh: string | null = null): void {
+    token = access
+    refreshToken = access ? refresh : null
+    guardar(TOKEN_KEY, token)
+    guardar(REFRESH_KEY, refreshToken)
+  },
   setToken(t: string | null): void {
-    token = t
-    try {
-      if (t) localStorage.setItem(TOKEN_KEY, t)
-      else localStorage.removeItem(TOKEN_KEY)
-    } catch {
-      /* almacenamiento no disponible */
-    }
+    auth.setTokens(t, t ? refreshToken : null)
   },
   /** Se dispara con cualquier 401 (token vencido o inválido). */
   onUnauthorized(fn: () => void): () => void {
@@ -92,14 +107,16 @@ async function viaMock<T>(method: HttpMethod, fullPath: string, body: unknown): 
 
 async function viaFetch<T>(method: HttpMethod, fullPath: string, body: unknown): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' }
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  // FormData (subida de archivos): el navegador pone el Content-Type multipart con su boundary.
+  const esForm = body instanceof FormData
+  if (body !== undefined && !esForm) headers['Content-Type'] = 'application/json'
   if (token) headers.Authorization = `Bearer ${token}`
   let res: Response
   try {
     res = await fetch(`${env.apiUrl}${fullPath}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : esForm ? body : JSON.stringify(body),
     })
   } catch {
     throw new ApiError(0, { error: 'NetworkError', message: 'No se pudo conectar con el servidor' })
@@ -111,10 +128,42 @@ async function viaFetch<T>(method: HttpMethod, fullPath: string, body: unknown):
   return data as T
 }
 
+/**
+ * El access token dura ACCESS_TOKEN_MINUTOS (15 por defecto). Ante un 401 se canjea el refresh
+ * token una sola vez (compartida entre requests concurrentes, porque el backend lo rota) y se reintenta.
+ */
+let refreshEnCurso: Promise<boolean> | null = null
+function renovarToken(): Promise<boolean> {
+  if (!refreshToken) return Promise.resolve(false)
+  refreshEnCurso ??= (async () => {
+    try {
+      const r = await viaFetch<{ access_token: string; refresh_token?: string }>('POST', '/auth/refresh', {
+        refresh_token: refreshToken,
+      })
+      auth.setTokens(r.access_token, r.refresh_token ?? null)
+      return true
+    } catch {
+      return false
+    } finally {
+      refreshEnCurso = null
+    }
+  })()
+  return refreshEnCurso
+}
+
+const RUTAS_SIN_REFRESH = ['/auth/login', '/auth/refresh', '/auth/logout']
+
 async function send<T>(useMock: boolean, method: HttpMethod, path: string, opts: { query?: Query; body?: unknown }): Promise<T> {
   const full = buildPath(path, opts.query)
   try {
-    return useMock ? await viaMock<T>(method, full, opts.body) : await viaFetch<T>(method, full, opts.body)
+    if (useMock) return await viaMock<T>(method, full, opts.body)
+    try {
+      return await viaFetch<T>(method, full, opts.body)
+    } catch (e) {
+      const puedeRenovar = e instanceof ApiError && e.status === 401 && !RUTAS_SIN_REFRESH.some((r) => path.startsWith(r))
+      if (puedeRenovar && (await renovarToken())) return await viaFetch<T>(method, full, opts.body)
+      throw e
+    }
   } catch (e) {
     const esMockTemporal = useMock && !env.useMock
     if (e instanceof ApiError && e.status === 401 && !esMockTemporal && !path.startsWith('/auth/login')) {

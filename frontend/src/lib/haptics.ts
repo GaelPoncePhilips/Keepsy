@@ -32,6 +32,8 @@ export function activarHaptica(v: boolean): void {
 
 export function vibrar(p: Patron = 'click'): void {
   if (!('vibrate' in navigator) || !hapticaActiva()) return
+  // Sin un gesto previo del usuario Chrome bloquea la vibración y lo avisa en consola.
+  if ('userActivation' in navigator && !navigator.userActivation.hasBeenActive) return
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   try {
     navigator.vibrate(PATRONES[p])

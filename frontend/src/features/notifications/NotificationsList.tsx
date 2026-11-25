@@ -8,6 +8,7 @@ import { useAsync } from '../../lib/hooks'
 import { tiempoCorto } from '../../lib/time'
 import { aceptarInvitacion, quitarMiembro } from '../../services/albums'
 import { mensajeDeError } from '../../services/client'
+import { decodificar } from '../../services/temporal/comentariosExtra'
 import { marcarTodasLeidas, notificaciones } from '../../services/temporal'
 import { responderSolicitud, solicitudes } from '../../services/usuarios'
 import { useBadges } from '../../stores/badges'
@@ -78,12 +79,22 @@ function Fila({
         </ButtonGroup>
       )
       break
+    case 'solicitud_aceptada':
+      accion = 'aceptó tu solicitud de seguimiento.'
+      derecha = (
+        <Link to={`/${n.actor.username}`} onClick={onNavigate}>
+          <Button variant="tonal" size="xs" tabIndex={-1}>
+            Ver perfil
+          </Button>
+        </Link>
+      )
+      break
     case 'like':
       accion = 'le gustó tu publicación.'
       derecha = <Miniatura to={postTo} url={n.url_miniatura} onNavigate={onNavigate} />
       break
     case 'comentario':
-      accion = `comentó: ${n.texto ?? ''}`
+      accion = `comentó: ${n.texto ? decodificar(n.texto).texto : ''}`
       derecha = <Miniatura to={postTo} url={n.url_miniatura} onNavigate={onNavigate} />
       break
     case 'invitacion_album':

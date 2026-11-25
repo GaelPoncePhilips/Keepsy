@@ -65,6 +65,9 @@ class PostRepository:
         return self.db.get(Post, post_id)
 
     def eliminar(self, post: Post) -> None:
+        # Mensaje.post_id es ON DELETE SET NULL, pero un mensaje sin texto ni post viola su CHECK:
+        # los DMs que solo compartían este post se borran; los que tienen texto lo conservan.
+        self.db.execute(text("DELETE FROM mensaje WHERE post_id = :id AND texto IS NULL"), {"id": post.id})
         self.db.delete(post)
         self.db.commit()
 

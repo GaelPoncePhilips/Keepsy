@@ -12,6 +12,19 @@
       "runtimeExecutable": "C:\\Users\\User\\.bun\\bin\\bun.exe",
       "runtimeArgs": ["run", "--cwd", "frontend", "preview", "--port", "4173", "--strictPort"],
       "port": 4173
+    },
+    {
+      "name": "keepsy-backend",
+      "runtimeExecutable": "C:\\Users\\User\\OneDrive\\Documentos\\Keepsy\\backend\\venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "src.main"],
+      "cwd": "backend",
+      "port": 8000
+    },
+    {
+      "name": "keepsy-frontend-real",
+      "runtimeExecutable": "C:\\Users\\User\\.bun\\bin\\bun.exe",
+      "runtimeArgs": ["run", "--cwd", "frontend", "dev", "--mode", "real", "--port", "5173", "--strictPort"],
+      "port": 5173
     }
   ]
 }

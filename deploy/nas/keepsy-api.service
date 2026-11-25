@@ -1,0 +1,16 @@
+# ~/.config/systemd/user/keepsy-api.service — backend FastAPI de keepsy.gaelcloud.org
+# Solo escucha en localhost: el público entra por serve.mjs (/api, /media).
+# Config en %h/SmallHosting/keepsy/api/.env (DATABASE_URL, JWT_SECRET, MEDIA_DIR...). Lo sube deploy-nas.sh.
+[Unit]
+Description=keepsy.gaelcloud.org API (FastAPI)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/SmallHosting/keepsy/api
+ExecStart=%h/SmallHosting/keepsy/api/venv/bin/uvicorn src.app:app --host 127.0.0.1 --port 8096 --workers 2 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

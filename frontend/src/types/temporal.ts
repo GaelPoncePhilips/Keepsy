@@ -5,6 +5,8 @@ import type { ISODate, UsuarioResumen } from './api'
 export type TipoNotificacion =
   | 'seguidor_nuevo'
   | 'solicitud_seguimiento'
+  /** Solo backend real: aceptaron mi solicitud de seguimiento. */
+  | 'solicitud_aceptada'
   | 'like'
   | 'comentario'
   | 'invitacion_album'

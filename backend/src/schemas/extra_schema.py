@@ -1,16 +1,20 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, model_validator
+
+from src.schemas.tipos import UrlMedia
 
 
 # ---------- Destacadas
 class CreateDestacadaSchema(BaseModel):
     titulo: str = Field(min_length=1, max_length=50)
-    portada_url: str | None = None
+    portada_url: UrlMedia | None = None
     story_ids: list[int] = Field(min_length=1)
 
 
 class UpdateDestacadaSchema(BaseModel):
     titulo: str | None = Field(default=None, min_length=1, max_length=50)
-    portada_url: str | None = None
+    portada_url: UrlMedia | None = None
 
 
 class AgregarStorySchema(BaseModel):
@@ -29,13 +33,13 @@ class OrdenStoriesSchema(BaseModel):
 class CreateAlbumSchema(BaseModel):
     titulo: str = Field(min_length=1, max_length=60)
     descripcion: str | None = Field(default=None, max_length=255)
-    portada_url: str | None = None
+    portada_url: UrlMedia | None = None
 
 
 class UpdateAlbumSchema(BaseModel):
     titulo: str | None = Field(default=None, min_length=1, max_length=60)
     descripcion: str | None = Field(default=None, max_length=255)
-    portada_url: str | None = None
+    portada_url: UrlMedia | None = None
 
 
 class InvitarSchema(BaseModel):
@@ -43,8 +47,16 @@ class InvitarSchema(BaseModel):
 
 
 class CreateAlbumItemSchema(BaseModel):
-    url_imagen: str = Field(min_length=1)
+    url_imagen: UrlMedia  # en un video, la portada
     descripcion: str | None = Field(default=None, max_length=500)
+    tipo: Literal["foto", "video"] = "foto"
+    url_video: UrlMedia | None = None
+
+    @model_validator(mode="after")
+    def validar_video(self):
+        if (self.tipo == "video") != (self.url_video is not None):
+            raise ValueError("Un video necesita url_video y una foto no lo lleva")
+        return self
 
 
 # ---------- DMs

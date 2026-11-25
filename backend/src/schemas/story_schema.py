@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field
 
+from src.schemas.tipos import UrlMedia
+
 
 class CreateStorySchema(BaseModel):
-    url_imagen: str = Field(min_length=1)
+    url_imagen: UrlMedia
     solo_mejores_amigos: bool = False

@@ -182,9 +182,12 @@ CREATE TABLE album_item (
     id          SERIAL PRIMARY KEY,
     album_id    INT NOT NULL REFERENCES Album(id)   ON DELETE CASCADE,
     usuario_id  INT NOT NULL REFERENCES Usuario(id) ON DELETE CASCADE,
-    url_imagen  VARCHAR NOT NULL,
+    url_imagen  VARCHAR NOT NULL,                         -- en un video es la portada
     descripcion VARCHAR(500),
-    fecha       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    fecha       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tipo        VARCHAR(5) NOT NULL DEFAULT 'foto' CHECK (tipo IN ('foto', 'video')),
+    url_video   VARCHAR,
+    CHECK ((tipo = 'video') = (url_video IS NOT NULL))
 );
 CREATE INDEX idx_album_item_album_fecha ON album_item (album_id, fecha DESC);
 -- ---------------------------------------------------------------------
@@ -270,3 +273,39 @@ CREATE TABLE afinidad_usuario (
 CREATE INDEX idx_afinidad_similar ON afinidad_usuario (similar_id);
 CREATE INDEX idx_likes_usuario_fecha ON likes (usuario_id, fecha);
 
+
+
+-- ---------------------------------------------------------------------
+-- EXTRA: republicaciones (reposts)
+-- ---------------------------------------------------------------------
+
+CREATE TABLE repost (
+    usuario_id INT NOT NULL REFERENCES Usuario(id) ON DELETE CASCADE,   -- quién republica
+    post_id    INT NOT NULL REFERENCES Post(id)    ON DELETE CASCADE,
+    fecha      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (usuario_id, post_id)
+);
+CREATE INDEX idx_repost_post ON repost (post_id);
+CREATE INDEX idx_repost_usuario_fecha ON repost (usuario_id, fecha DESC);
+
+
+-- ---------------------------------------------------------------------
+-- EXTRA: likes y comentarios de items de álbum
+-- ---------------------------------------------------------------------
+
+CREATE TABLE album_item_like (
+    usuario_id INT NOT NULL REFERENCES Usuario(id)    ON DELETE CASCADE,
+    item_id    INT NOT NULL REFERENCES album_item(id) ON DELETE CASCADE,
+    fecha      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (usuario_id, item_id)
+);
+CREATE INDEX idx_album_item_like_item ON album_item_like (item_id);
+
+CREATE TABLE album_item_comentario (
+    id         SERIAL PRIMARY KEY,
+    item_id    INT NOT NULL REFERENCES album_item(id) ON DELETE CASCADE,
+    usuario_id INT NOT NULL REFERENCES Usuario(id)    ON DELETE CASCADE,
+    texto      VARCHAR(300) NOT NULL CHECK (length(trim(texto)) > 0),
+    fecha      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_album_item_comentario_item ON album_item_comentario (item_id, fecha);

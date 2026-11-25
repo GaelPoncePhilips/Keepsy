@@ -40,6 +40,11 @@ class AlbumItemDTO(BaseModel):
     url_imagen: str
     descripcion: str | None
     fecha: datetime
+    tipo: str = "foto"
+    url_video: str | None = None
+    cantidad_likes: int = 0
+    me_gusta: bool = False
+    cantidad_comentarios: int = 0
 
     model_config = {"from_attributes": True}
 

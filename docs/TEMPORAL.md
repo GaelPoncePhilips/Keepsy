@@ -2,6 +2,10 @@
 
 Lista de piezas que el frontend inventó porque el contrato (`API.md`) o el backend todavía no las ofrecen. Cada una está marcada `// TEMPORAL`, aislada en `frontend/src/services/temporal/` o `frontend/src/mocks/temporal/`, y se apaga con un flag `VITE_TEMPORAL_<NOMBRE>=false` (definidos en `frontend/src/config/env.ts`; por defecto activos).
 
+## Estado con el backend real (`bun run dev --mode real`, ver `frontend/.env.real`)
+
+Ya implementados en el backend y apagados en `.env.real`: **1 notificaciones** (el cliente adapta `solicitud` → `solicitud_seguimiento` y `{no_leidas}` → `{cantidad}`; el backend suma `url_miniatura` y `texto`), **2 búsqueda**, **4 subida de archivos** (`services/media.ts` → `POST /media`; con el mock sigue siendo URL de objeto), **7 usuario por id** (`GET /usuarios/{id}/resumen`) y **13 republicaciones**. También se apaga **11 cuentas dev** (no existen en la base real). Pendientes de borrar el código mock de esas piezas cuando ya no se use el modo mock.
+
 ## Mecanismo general
 
 - `temporalRequest(flag, método, ruta, opts)` en `frontend/src/services/client.ts`: si el flag está activo responde desde el mock en memoria (`src/mocks`) aunque `VITE_USE_MOCK=false`; si el flag está apagado, va al backend real con `fetch`.

@@ -1,3 +1,4 @@
+import mimetypes
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -8,7 +9,7 @@ import src.db.models  # noqa: F401  registra todos los modelos
 from src.config.env import settings
 from src.middlewares.error_middleware import app_error_handler
 from src.routers import (
-    auth_router, extra_router, media_router, notificacion_router, post_router, seguidor_router,
+    album_social_router, auth_router, extra_router, media_router, notificacion_router, post_router, repost_router, seguidor_router,
     social_router, story_router, usuario_router,
 )
 from src.utils.errors import AppError
@@ -25,8 +26,12 @@ app.add_middleware(
 app.add_exception_handler(AppError, app_error_handler)
 
 for r in (auth_router, usuario_router, seguidor_router, social_router, post_router, story_router,
-          extra_router, media_router, notificacion_router):
+          extra_router, album_social_router, media_router, notificacion_router, repost_router):
     app.include_router(r.router, prefix="/api")
+
+# Windows no siempre trae estos tipos en el registro: sin esto /media/*.webp sale como octet-stream.
+for _tipo, _ext in (("image/webp", ".webp"), ("video/webm", ".webm"), ("video/mp4", ".mp4"), ("video/quicktime", ".mov")):
+    mimetypes.add_type(_tipo, _ext)
 
 Path(settings.MEDIA_DIR).mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=settings.MEDIA_DIR), name="media")

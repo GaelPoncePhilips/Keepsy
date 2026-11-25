@@ -85,7 +85,7 @@ echo "→ Backend en http://localhost:8000 (docs en /docs)"
 PIDS+=($!)
 
 echo "→ Frontend en http://localhost:5173 (y la IP de tu red), contra el backend vía /api"
-(cd "$FRONTEND" && VITE_USE_MOCK=false VITE_API_URL=/api BACKEND_URL=http://localhost:8000 exec bun run dev) &
+(cd "$FRONTEND" && exec bun run dev --mode real) &   # frontend/.env.real
 PIDS+=($!)
 
 # Si uno de los dos se cae, cerramos todo.
