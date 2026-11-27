@@ -35,7 +35,7 @@ def activo(col: str) -> str:
 POST_COLUMNAS = f"""
     p.id, p.usuario_id, u.username AS autor_username, u.nombre AS autor_nombre,
     p.tipo, p.url_imagen, p.url_video, p.duracion_seg, p.descripcion, p.fecha_publicacion, p.fecha_edicion,
-    COALESCE(p.imagenes_extra, '{}') AS imagenes_extra,
+    COALESCE(p.imagenes_extra, '{{}}') AS imagenes_extra,
     (SELECT count(*) FROM likes l_c WHERE l_c.post_id = p.id AND {_no_bloqueado_por_dueno('l_c.usuario_id')}) AS cantidad_likes,
     (SELECT count(*) FROM comentario c_c WHERE c_c.post_id = p.id AND {_no_bloqueado_por_dueno('c_c.usuario_id')}) AS cantidad_comentarios,
     EXISTS (SELECT 1 FROM likes l_m WHERE l_m.post_id = p.id AND l_m.usuario_id = :yo) AS me_gusta,
