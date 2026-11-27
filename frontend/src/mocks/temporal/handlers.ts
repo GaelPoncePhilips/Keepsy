@@ -16,6 +16,7 @@ function notifDTO(db: Db, n: DbNotificacion): Notificacion {
     actor: resumen(usuario(db, n.actor_id)),
     post_id: n.post_id,
     album_id: n.album_id,
+    story_id: n.story_id ?? null,
     url_miniatura: n.url_miniatura,
     texto: n.texto,
     leida: n.leida,

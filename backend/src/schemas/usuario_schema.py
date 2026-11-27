@@ -14,3 +14,4 @@ class UpdateUsuarioSchema(BaseModel):
     bio: str | None = Field(default=None, max_length=255)
     es_privada: bool | None = None
     reels_desactivados: bool | None = None
+    foto_url: str | None = Field(default=None, max_length=500)  # "" = quitar foto

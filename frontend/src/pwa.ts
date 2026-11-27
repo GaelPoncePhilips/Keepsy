@@ -16,6 +16,10 @@ interface PwaState {
   /** Ya corre como app instalada. */
   instalada: boolean
   instalar: () => Promise<void>
+  /** Hoja con los pasos para instalar en iOS (Compartir → Agregar a inicio). */
+  mostrarAyudaIos: boolean
+  abrirAyudaIos: () => void
+  cerrarAyudaIos: () => void
 }
 
 let diferido: BeforeInstallPromptEvent | null = null
@@ -34,10 +38,20 @@ export const usePwa = create<PwaState>((set) => ({
     diferido = null
     set({ instalable: false, instalada: outcome === 'accepted' })
   },
+  mostrarAyudaIos: false,
+  abrirAyudaIos: () => set({ mostrarAyudaIos: true }),
+  cerrarAyudaIos: () => set({ mostrarAyudaIos: false }),
 }))
 
-/** iOS no tiene beforeinstallprompt: se instala con Compartir → "Agregar a inicio". */
-export const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent)
+/** iOS no tiene beforeinstallprompt: se instala con Compartir → "Agregar a inicio". Incluye iPadOS (que se anuncia como Macintosh). */
+export const esIOS = () =>
+  /iphone|ipad|ipod/i.test(navigator.userAgent) || (/macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+
+/** Safari de iOS/iPadOS (no Chrome/Firefox/Edge/Opera ni webviews con otra marca). */
+export const esSafariIOS = () => esIOS() && !/crios|fxios|edgios|opios|gsa\//i.test(navigator.userAgent)
+
+/** Ya corre como app instalada (standalone). */
+export const estaEnStandalone = enStandalone
 
 export function instalarPwa(): void {
   window.addEventListener('beforeinstallprompt', (e) => {

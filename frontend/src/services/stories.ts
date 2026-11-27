@@ -3,6 +3,8 @@ import type {
   CreateDestacadaBody,
   CreateStoryBody,
   Destacada,
+  EstadoLikeStory,
+  LikeStory,
   StoriesDeUsuario,
   Story,
   UpdateDestacadaBody,
@@ -27,6 +29,18 @@ export const registrarVista = (id: number) => api.post<void>(`/stories/${id}/vis
 
 /** GET /stories/{id}/vistas → Vista[]. Solo dueño de la story */
 export const vistasDeStory = (id: number) => api.get<Vista[]>(`/stories/${id}/vistas`)
+
+/** GET /stories/{id} → Story suelta (dueño siempre; resto si vigente o destacada) */
+export const obtenerStory = (id: number) => api.get<Story>(`/stories/${id}`)
+
+/** POST /stories/{id}/like → {me_gusta, cantidad_likes}. Notifica al dueño */
+export const darLikeStory = (id: number) => api.post<EstadoLikeStory>(`/stories/${id}/like`)
+
+/** DELETE /stories/{id}/like → {me_gusta, cantidad_likes} */
+export const quitarLikeStory = (id: number) => api.del<EstadoLikeStory>(`/stories/${id}/like`)
+
+/** GET /stories/{id}/likes → LikeStory[]. Solo dueño */
+export const likesDeStory = (id: number) => api.get<LikeStory[]>(`/stories/${id}/likes`, { limit: 50 })
 
 /** DELETE /stories/{id} → 204. Solo dueño */
 export const borrarStory = (id: number) => api.del(`/stories/${id}`)

@@ -5,6 +5,7 @@ import { Icon } from '../../components/ui/Icon'
 import { cn } from '../../lib/hooks'
 import { useBadges } from '../../stores/badges'
 import { useYo } from '../../stores/session'
+import { useTecladoAbierto } from '../../lib/useTeclado'
 import { useUi } from '../../stores/ui'
 import { DevSwitcherDialog } from './DevSwitcher'
 import { MoreMenu } from './MoreMenu'
@@ -25,7 +26,10 @@ export function Logo({ size = 28 }: { size?: number }) {
  * la gota del blob lo envuelve y el foco principal de luz nace de su ícono. "Crear" abre el menú radial.
  */
 export function BottomNav() {
-  return useUi((s) => s.estilo.ui) === 'clasica' ? <BottomNavClasica /> : <BottomNavBlob />
+  const clasica = useUi((s) => s.estilo.ui) === 'clasica'
+  // Mientras se escribe, la barra se oculta: si no, el teclado la empuja hacia arriba.
+  if (useTecladoAbierto()) return null
+  return clasica ? <BottomNavClasica /> : <BottomNavBlob />
 }
 
 /** Barra inferior clásica tipo Instagram: 5 íconos sin texto, activo = relleno, Crear abre el diálogo. */

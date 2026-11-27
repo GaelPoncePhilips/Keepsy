@@ -30,14 +30,15 @@ export interface Estilo {
   bordes: 'irregulares' | 'solidos'
   anillos: 'formas' | 'regulares'
 }
-const ESTILO_KEY = 'keepsy.estilo'
-const ESTILO_DEF: Estilo = { ui: 'blob', bordes: 'solidos', anillos: 'regulares' }
+try {
+  localStorage.removeItem('keepsy.estilo')
+} catch {
+  /* sin almacenamiento */
+}
+/** Interfaz fija: blob con bordes sólidos y formas de estrella de 8 puntas en todos lados (sin selector). */
+const ESTILO_DEF: Estilo = { ui: 'blob', bordes: 'solidos', anillos: 'formas' }
 function estiloInicial(): Estilo {
-  try {
-    return { ...ESTILO_DEF, ...JSON.parse(localStorage.getItem(ESTILO_KEY) ?? '{}') }
-  } catch {
-    return ESTILO_DEF
-  }
+  return ESTILO_DEF
 }
 function aplicarEstilo(e: Estilo) {
   document.documentElement.dataset.estilo = e.ui
@@ -64,11 +65,6 @@ export const useUi = create<UiState>((set, get) => ({
   estilo: estiloInicial(),
   setEstilo(parcial) {
     const e = { ...get().estilo, ...parcial }
-    try {
-      localStorage.setItem(ESTILO_KEY, JSON.stringify(e))
-    } catch {
-      /* sin almacenamiento */
-    }
     aplicarEstilo(e)
     set({ estilo: e })
   },

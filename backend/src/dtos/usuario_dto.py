@@ -16,6 +16,7 @@ class UpdateUsuarioDTO(BaseModel):
     bio: str | None = None
     es_privada: bool | None = None
     reels_desactivados: bool | None = None
+    foto_url: str | None = None
 
 
 class UsuarioResponseDTO(BaseModel):
@@ -27,6 +28,7 @@ class UsuarioResponseDTO(BaseModel):
     bio: str | None
     es_privada: bool
     reels_desactivados: bool
+    foto_url: str | None = None
     fecha_registro: datetime
 
     model_config = {"from_attributes": True}

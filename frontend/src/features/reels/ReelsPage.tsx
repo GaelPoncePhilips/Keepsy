@@ -1,3 +1,4 @@
+import { emitirLike } from '../../lib/eventos'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { navegarConZoom } from '../../lib/transicion'
 import { Link, useNavigate, useParams } from 'react-router'
@@ -137,8 +138,14 @@ function ReelItem({
     setLikes((n) => n + (quiere ? 1 : -1))
     vibrar(quiere ? 'click' : 'tick')
     try {
-      if (quiere) await darLike(post.id)
-      else await quitarLike(post.id)
+      if (quiere) {
+        const p = await darLike(post.id)
+        setLikes(p.cantidad_likes)
+        emitirLike({ postId: post.id, meGusta: true, cantidad: p.cantidad_likes })
+      } else {
+        await quitarLike(post.id)
+        emitirLike({ postId: post.id, meGusta: false, cantidad: Math.max(0, likes - 1) })
+      }
     } catch (e) {
       setLiked(!quiere)
       setLikes((n) => n + (quiere ? -1 : 1))
@@ -210,6 +217,9 @@ function ReelItem({
 
   const tarjeta = (
     <div className={cn('relative overflow-hidden bg-black', mobile ? 'size-full' : 'h-[calc(100dvh-32px)] rounded-md')} style={mobile ? undefined : { aspectRatio: '9 / 16' }}>
+      {post.url_imagen && (
+        <img src={post.url_imagen} alt="" aria-hidden="true" className="absolute inset-0 size-full scale-110 object-cover opacity-50 blur-2xl" />
+      )}
       <video
         ref={video}
         src={post.url_video ?? undefined}
@@ -218,7 +228,7 @@ function ReelItem({
         loop
         playsInline
         preload="metadata"
-        className="size-full object-cover"
+        className="relative size-full object-contain"
       />
       <button type="button" aria-label={pausado ? 'Reproducir' : 'Pausar'} onClick={tocar} className="absolute inset-0 cursor-pointer">
         {pausado && (
@@ -232,14 +242,17 @@ function ReelItem({
           </span>
         )}
       </button>
-      <IconButton
-        icon={muted ? 'volume_off' : 'volume_up'}
-        label={muted ? 'Activar sonido' : 'Silenciar'}
-        size={20}
-        className="absolute top-3 right-3 bg-black/40 text-white"
-        onClick={onToggleMute}
-      />
-      <div className={cn('pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 bg-gradient-to-t from-black/70 to-transparent p-4', mobile && 'pr-2')}>
+      {/* IconButton trae `relative`: el posicionamiento va en un contenedor propio. */}
+      <span className="absolute top-[calc(12px+env(safe-area-inset-top))] left-3 z-20">
+        <IconButton
+          icon={muted ? 'volume_off' : 'volume_up'}
+          label={muted ? 'Activar sonido' : 'Silenciar'}
+          size={20}
+          className="bg-black/40 text-white"
+          onClick={onToggleMute}
+        />
+      </span>
+      <div className={cn('pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end gap-3 bg-gradient-to-t from-black/60 via-black/25 to-transparent px-4 pt-16 pb-4', mobile && 'pr-2')}>
         <div className="pointer-events-auto flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex items-center gap-2">
             <Link to={`/${post.autor_username}`} className="flex min-w-0 items-center gap-2 text-white">
@@ -261,9 +274,11 @@ function ReelItem({
   )
 
   return (
-    <section ref={raiz} aria-label={`Reel de ${post.autor_username}`} className="relative flex h-full snap-start snap-always items-center justify-center gap-4">
+    <section ref={raiz} aria-label={`Reel de ${post.autor_username}`} className="relative flex h-full w-full snap-start snap-always items-center justify-center gap-4">
       {!mobile && <Ambient src={post.url_imagen} active={visible} />}
-      <div className="relative z-10 flex items-center justify-center gap-4">
+      {/* En móvil la tarjeta ocupa todo el visor: los controles quedan anclados al borde inferior de la
+          pantalla y el silencio arriba a la izquierda, aunque el video no sea 9:16. */}
+      <div className={cn('relative z-10 flex items-center justify-center gap-4', mobile && 'size-full')}>
         {tarjeta}
         {!mobile && <div className="self-end pb-4">{acciones}</div>}
       </div>
@@ -283,8 +298,7 @@ function ReelItem({
 function useVolver() {
   const navigate = useNavigate()
   return useCallback(() => {
-    if (window.history.length > 1) navegarConZoom(navigate, -1)
-    else navigate('/')
+    navegarConZoom(navigate, -1)
   }, [navigate])
 }
 
@@ -353,16 +367,20 @@ export function ReelsPage() {
 
   return (
     <div className="relative">
-      <IconButton
-        icon="arrow_back"
-        label="Volver"
-        variant={mobile ? 'standard' : 'tonal'}
+      <span
         className={cn(
-          'fixed top-3 left-3 z-20',
-          mobile ? 'bg-black/35 text-white' : 'md:left-[calc(var(--sidebar-w-collapsed)+12px)] lg:left-[calc(var(--sidebar-w)+12px)]',
+          'absolute z-20',
+          mobile ? 'top-[calc(12px+env(safe-area-inset-top))] right-3' : 'top-3 left-3',
         )}
-        onClick={volver}
-      />
+      >
+        <IconButton
+          icon="arrow_back"
+          label="Volver"
+          variant={mobile ? 'standard' : 'tonal'}
+          className={mobile ? 'bg-black/35 text-white' : undefined}
+          onClick={volver}
+        />
+      </span>
       {!mobile && (
         <div className="fixed top-1/2 right-6 z-20 flex -translate-y-1/2 flex-col gap-3">
           <IconButton icon="keyboard_arrow_up" label="Reel anterior" variant="tonal" onClick={() => saltar(-1)} />

@@ -52,9 +52,22 @@
 }
 
 :root {
-  /* Paleta de marca */
-  --keepsy-amigos: #e3746e;
-  --keepsy-nav-icono: #ecc457;
+  /* Paleta de marca: rojo del logo → coral → rosa */
+  --keepsy-rojo: #d12c23;
+  --keepsy-coral: #e3746e;
+  --keepsy-rosa: #e8a4a1;
+  --keepsy-rosa-claro: #eecac8;
+  --keepsy-rosa-palido: #f5e6e5;
+  /* Mejores amigos (anillo, insignias, lista) */
+  --keepsy-amigos: var(--keepsy-rojo);
+  /* Anillos de story: sin ver = mezcla rosa/coral; vistas = mezcla de rosas pálidos; mejores amigos = rojo */
+  --keepsy-story-nueva: linear-gradient(135deg, var(--keepsy-rosa) 0%, var(--keepsy-coral) 100%);
+  --keepsy-story-vista: linear-gradient(135deg, var(--keepsy-rosa-palido) 0%, var(--keepsy-rosa-claro) 100%);
+  --keepsy-story-amigos: var(--keepsy-rojo);
+  /* Íconos de la barra inferior sobre el vidrio oscuro */
+  --keepsy-nav-icono: var(--keepsy-rosa-claro);
+  /* Fondo detrás de la lámina-blob (negro cálido, no azulado) */
+  --keepsy-fondo-blob: #0e0a0a;
   --keepsy-logo: #a72720;
   --nav-h: 50px;
   --feed-w: 470px;
@@ -67,10 +80,21 @@
 }
 :root[data-tema='oscuro'] {
   --keepsy-logo: #d12c23;
+  /* En oscuro los rosas pálidos brillarían más que los no vistos: se apagan contra la superficie. */
+  --keepsy-story-vista: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--keepsy-rosa-palido) 38%, transparent) 0%,
+    color-mix(in srgb, var(--keepsy-rosa-claro) 38%, transparent) 100%
+  );
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-tema='claro']) {
     --keepsy-logo: #d12c23;
+    --keepsy-story-vista: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--keepsy-rosa-palido) 38%, transparent) 0%,
+      color-mix(in srgb, var(--keepsy-rosa-claro) 38%, transparent) 100%
+    );
   }
 }
 @media (max-width: 767px) {
@@ -93,6 +117,18 @@ body {
 html {
   /* Sin "rebote" elástico arriba/abajo: en móvil arrastraba las barras fijas. */
   overscroll-behavior-y: none;
+  /* iOS agranda el texto al rotar o volver de otra app si no se fija: corría las barras. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+/* iOS hace zoom al enfocar un campo con letra < 16px y, al volver, la barra inferior queda corrida
+   (parece que "se subió"). En pantallas táctiles los campos usan 16px como mínimo. */
+@media (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio'], [type='range']),
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
 }
 body {
   margin: 0;
@@ -444,7 +480,8 @@ select:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
+  /* La barra de progreso de las stories mide los 5 s con su animación: no se acorta. */
+  *:not(.story-progress-bar),
   *::before,
   *::after {
     animation-duration: 100ms !important;
@@ -459,6 +496,13 @@ select:focus-visible {
   .anim-fab-item,
   .anim-page {
     animation-name: fade-in !important;
+  }
+  .radial-item,
+  .radial-menu[data-cerrando='true'] .radial-item,
+  .radial-core,
+  .radial-core-icon {
+    animation-name: fade-in !important;
+    animation-delay: 0ms !important;
   }
   .heart-pop {
     animation-name: fade-in !important;
@@ -668,7 +712,7 @@ select:focus-visible {
 /* Móvil: el fondo base es el de la barra inferior; la lámina-blob (NavBlob) pinta la pantalla encima. */
 @media (max-width: 767px) {
   [data-estilo='blob'] body {
-    background: #080810; /* hueco entre el blob y la barra */
+    background: var(--keepsy-fondo-blob); /* hueco entre el blob y la barra */
   }
 }
 /* Menú Crear: las gotas nacen desde la esquina superior izquierda */

@@ -13,6 +13,7 @@ class Usuario(Base):
     password_hash = Column(String(255), nullable=False)
     nombre = Column(String(100), nullable=False)
     bio = Column(String(255))
+    foto_url = Column(String(500))  # EXTRA: foto de perfil
     es_privada = Column(Boolean, nullable=False, server_default="false")
     reels_desactivados = Column(Boolean, nullable=False, server_default="false")  # EXTRA
     eliminado_en = Column(DateTime)  # EXTRA: borrado lógico

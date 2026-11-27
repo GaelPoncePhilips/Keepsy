@@ -45,7 +45,7 @@ const onda = (a: number, t: number, k: number) => Math.sin(a * 0.021 * k + t * 0
 /** Puntos del contorno. p (0→1) = expansión desde la gota; s = estiramiento por velocidad. */
 function contorno(g: Geo, xc: number, t: number, p: number, s: number): [number, number][] {
   const { y0, iconoY, fondoGota } = bordes(g)
-  const base = y0 - 14 // deja el hueco #080810 entre blob y barra
+  const base = y0 - 14 // deja el hueco (--keepsy-fondo-blob) entre blob y barra
   const pts: [number, number][] = []
   const izq = (y: number) => 3 + onda(y, t, 0.6) * 0.8
   const der = (y: number) => g.w - 3 - onda(y + 300, t, 0.6) * 0.8
@@ -358,7 +358,7 @@ export function NavBlob({ index, count, lamina = true, solido = false }: { index
       {lamina && (
         // Tapa lo que queda fuera del blob. Es fija (no un clip-path sobre el contenido que scrollea), así no se desfasa al scrollear.
         <svg aria-hidden="true" className="pointer-events-none fixed inset-0 z-[11] h-full w-full md:hidden">
-          <path ref={registrar} data-blob="fuera" fillRule="evenodd" fill="#080810" />
+          <path ref={registrar} data-blob="fuera" fillRule="evenodd" style={{ fill: 'var(--keepsy-fondo-blob)' }} />
         </svg>
       )}
       {lamina && (

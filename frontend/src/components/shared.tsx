@@ -148,6 +148,11 @@ function GridTile({ post, aspect, linkState }: { post: Post; aspect: 'square' | 
       aria-label={`Publicación de ${post.autor_username}${post.descripcion ? `: ${post.descripcion.slice(0, 60)}` : ''}`}
     >
       <img src={post.url_imagen} alt={post.descripcion ?? `Publicación de ${post.autor_username}`} loading="lazy" className="size-full object-cover" />
+      {post.tipo !== 'reel' && (post.imagenes_extra?.length ?? 0) > 0 && (
+        <span className="absolute top-2 right-2 text-white drop-shadow" aria-label="Varias fotos">
+          <Icon name="photo_library" fill size={20} />
+        </span>
+      )}
       {post.tipo === 'reel' && (
         <span className="absolute top-2 right-2 text-white drop-shadow">
           <Icon name={aspect === 'reel' ? 'play_arrow' : 'movie'} fill size={20} />
@@ -206,7 +211,7 @@ export function PostSkeleton() {
 /** Cabecera simple de pantalla en móvil: atrás + título (+ acción). */
 export function ScreenHeader({ title, onBack, action }: { title: ReactNode; onBack?: () => void; action?: ReactNode }) {
   return (
-    <header className="sticky top-0 z-20 flex h-12 items-center gap-1 border-b border-outline-variant/60 bg-surface px-1">
+    <header className="sticky top-0 z-20 flex h-[calc(3rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] items-center gap-1 border-b border-outline-variant/60 bg-surface px-1">
       {onBack ? (
         <button type="button" aria-label="Volver" onClick={onBack} className="state flex size-10 items-center justify-center rounded-full">
           <Icon name="arrow_back" />

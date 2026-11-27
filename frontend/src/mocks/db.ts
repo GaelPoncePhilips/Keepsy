@@ -33,6 +33,7 @@ export interface DbPost {
   duracion_seg: number | null
   descripcion: string | null
   fecha_publicacion: ISODate
+  imagenes_extra?: string[]
 }
 export interface DbLike {
   usuario_id: number
@@ -53,8 +54,16 @@ export interface DbStory {
   solo_mejores_amigos: boolean
   fecha_publicacion: ISODate
   fecha_vencimiento: ISODate
+  /** Texto sobre la story (puede llevar @menciones). */
+  texto?: string | null
 }
 export interface DbVista {
+  usuario_id: number
+  story_id: number
+  fecha: ISODate
+}
+/** Likes de stories */
+export interface DbStoryLike {
   usuario_id: number
   story_id: number
   fecha: ISODate
@@ -112,6 +121,7 @@ export interface DbNotificacion {
   actor_id: number
   post_id: number | null
   album_id: number | null
+  story_id?: number | null
   url_miniatura: string | null
   texto: string | null
   leida: boolean
@@ -133,6 +143,7 @@ export interface Db {
   comentarios: DbComentario[]
   stories: DbStory[]
   vistas: DbVista[]
+  storyLikes: DbStoryLike[]
   mejoresAmigos: DbMejorAmigo[]
   bloqueos: DbBloqueo[]
   destacadas: DbDestacada[]
@@ -156,6 +167,7 @@ export function emptyDb(): Db {
     comentarios: [],
     stories: [],
     vistas: [],
+    storyLikes: [],
     mejoresAmigos: [],
     bloqueos: [],
     destacadas: [],

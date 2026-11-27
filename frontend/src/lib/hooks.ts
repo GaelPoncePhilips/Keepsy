@@ -1,3 +1,4 @@
+import { alRevalidar } from './revalidar'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { ApiError } from '../services/client'
 
@@ -58,10 +59,26 @@ export function useAsync<T>(fn: () => Promise<T>, deps: readonly unknown[]): Asy
     claveRef.current = clave
   })
 
+  const silencioso = useRef(false)
   useEffect(() => {
     let vivo = true
     const k = claveRef.current
     const hit = k !== null && cacheDatos.has(k)
+    if (silencioso.current) {
+      // Revalidación automática: se conserva lo que se ve (y los errores no tapan la pantalla).
+      silencioso.current = false
+      fnRef
+        .current()
+        .then((d) => {
+          if (!vivo) return
+          guardarCache(k, d)
+          setDataState(d)
+        })
+        .catch(() => undefined)
+      return () => {
+        vivo = false
+      }
+    }
     // Con datos en caché se muestran ya (sin loader) y se revalida por detrás.
     if (hit && k) setDataState(cacheDatos.get(k) as T)
     setLoading(!hit)
@@ -85,6 +102,15 @@ export function useAsync<T>(fn: () => Promise<T>, deps: readonly unknown[]): Asy
   }, [...deps, tick])
 
   const reload = useCallback(() => setTick((t) => t + 1), [])
+  // Tras una acción del usuario o al volver a la app, se revalida por detrás (con la caché no hay loader).
+  useEffect(
+    () =>
+      alRevalidar(() => {
+        silencioso.current = true
+        setTick((t) => t + 1)
+      }),
+    [],
+  )
   const setData = useCallback((u: T | ((prev: T | undefined) => T)) => {
     setDataState((prev) => {
       const nuevo = typeof u === 'function' ? (u as (p: T | undefined) => T)(prev) : u
@@ -181,8 +207,9 @@ export function useInfinite<T>(
         .current(0, n)
         .then((page) => {
           if (myGen !== state.current.gen) return
-          const resto = hit.items.slice(page.length)
-          const nuevos = page.length >= hit.items.length ? page : [...page, ...resto]
+          // Página incompleta = la lista entera: lo que estaba en caché y ya no vino se borró en el servidor
+          // (post eliminado, republicación quitada…). Solo si vino completa se conserva el resto cacheado.
+          const nuevos = page.length < n ? page : [...page, ...hit.items.slice(page.length)]
           state.current.offset = nuevos.length
           if (page.length < n) {
             state.current.done = true

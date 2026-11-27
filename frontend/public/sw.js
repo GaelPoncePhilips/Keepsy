@@ -43,11 +43,14 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copia = res.clone()
-          caches.open(SHELL).then((c) => c.put('/index.html', copia))
+          // Solo se guarda el shell si es una respuesta directa (Safari rechaza servir respuestas con redirecciones a una navegación).
+          if (res.ok && !res.redirected && url.origin === self.location.origin) {
+            const copia = res.clone()
+            caches.open(SHELL).then((c) => c.put('/index.html', copia))
+          }
           return res
         })
-        .catch(() => caches.match('/index.html')),
+        .catch(() => caches.match('/index.html').then((r) => r || caches.match('/'))),
     )
     return
   }

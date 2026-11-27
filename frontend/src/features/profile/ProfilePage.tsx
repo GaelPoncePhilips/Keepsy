@@ -124,10 +124,10 @@ function Privada() {
 function Contador({ n, label, to }: { n: number; label: string; to?: string }) {
   const contenido = (
     <>
-      <span className="num">{numeroCorto(n)}</span> <span className="max-md:block max-md:text-on-surface-variant">{label}</span>
+      <span className="num">{numeroCorto(n)}</span> <span className="max-md:text-on-surface-variant @[19rem]:block">{label}</span>
     </>
   )
-  const cls = 'type-body-l max-md:text-center max-md:type-body-m'
+  const cls = 'type-body-l min-w-0 max-md:type-body-m max-md:@[19rem]:text-center'
   return to ? (
     <Link to={to} className={cn(cls, 'hover:opacity-80')}>
       {contenido}
@@ -211,15 +211,30 @@ function Encabezado({
   ]
 
   const avatar = (
-    <button
-      type="button"
-      disabled={vigentes.length === 0}
-      onClick={() => navegarConZoom(navigate, `/stories/${p.id}`)}
-      aria-label={vigentes.length ? `Ver stories de ${p.username}` : `Foto de perfil de ${p.username}`}
-      className="shrink-0 rounded-full disabled:cursor-default"
-    >
-      <Avatar username={p.username} size={isMobile ? 86 : 150} anillo={anillo} />
-    </button>
+    <span className="relative shrink-0">
+      <button
+        type="button"
+        disabled={vigentes.length === 0 && !esPropio}
+        onClick={() =>
+          vigentes.length ? navegarConZoom(navigate, `/stories/${p.id}?solo=1`) : navegarConZoom(navigate, '/cuenta/editar')
+        }
+        aria-label={vigentes.length ? `Ver stories de ${p.username}` : esPropio ? 'Cambiar foto de perfil' : `Foto de perfil de ${p.username}`}
+        className="rounded-full disabled:cursor-default"
+      >
+        <Avatar username={p.username} size={isMobile ? 86 : 150} anillo={anillo} />
+      </button>
+      {esPropio && (
+        // Cambiar la foto en cualquier momento, aunque haya stories activas.
+        <button
+          type="button"
+          onClick={() => navegarConZoom(navigate, '/cuenta/editar')}
+          aria-label="Cambiar foto de perfil"
+          className="absolute right-0 bottom-0 flex size-7 items-center justify-center rounded-full bg-primary text-on-primary ring-2 ring-surface"
+        >
+          <Icon name="photo_camera" size={16} />
+        </button>
+      )}
+    </span>
   )
 
   // Perfil propio: "Editar perfil" vive en Configuración y crear va en el FAB de la esquina.
@@ -266,7 +281,7 @@ function Encabezado({
     <>
       {isMobile ? (
         <>
-          <header className="sticky top-0 z-20 flex h-12 items-center gap-1 border-b border-outline-variant/60 bg-surface px-3">
+          <header className="sticky top-0 z-20 flex h-[calc(3rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] items-center gap-1 border-b border-outline-variant/60 bg-surface px-3">
             {p.es_privada && <Icon name="lock" size={18} />}
             <h1 className="type-title-m emphasized min-w-0 flex-1 truncate">{p.username}</h1>
             {esPropio ? (
@@ -278,7 +293,9 @@ function Encabezado({
           <div className="flex flex-col gap-3 px-4 pt-4">
             <div className="flex items-center gap-6">
               {avatar}
-              <div className="grid flex-1 grid-cols-3 gap-1">{contadores}</div>
+              <div className="@container min-w-0 flex-1">
+                <div className="grid grid-cols-1 gap-1 @[19rem]:grid-cols-3">{contadores}</div>
+              </div>
             </div>
             {bio}
             {botones}
@@ -292,7 +309,7 @@ function Encabezado({
               <h1 className="type-title-l min-w-0 truncate">{p.username}</h1>
               {botones}
             </div>
-            <div className="flex gap-10">{contadores}</div>
+            <div className="flex flex-wrap gap-x-10 gap-y-1">{contadores}</div>
             {bio}
           </div>
         </div>

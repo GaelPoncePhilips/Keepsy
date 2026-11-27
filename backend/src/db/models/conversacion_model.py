@@ -32,4 +32,5 @@ class Mensaje(Base):
     emisor_id = Column(Integer, ForeignKey("usuario.id", ondelete="CASCADE"), nullable=False)
     texto = Column(String(1000))
     post_id = Column(Integer, ForeignKey("post.id", ondelete="SET NULL"))
+    story_id = Column(Integer, ForeignKey("story.id", ondelete="SET NULL"))  # respuesta o story reenviada
     fecha = Column(DateTime, nullable=False, server_default=func.now())

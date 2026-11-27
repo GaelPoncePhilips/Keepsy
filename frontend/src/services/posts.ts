@@ -17,6 +17,9 @@ export const crearPost = (body: CreatePostBody) => api.post<Post>('/posts', body
 export const obtenerPost = (id: number) => api.get<Post>(`/posts/${id}`)
 
 /** DELETE /posts/{id} → 204. Solo autor */
+/** PATCH /posts/{id} — body {descripcion} → Post (solo el dueño; null borra la descripción) */
+export const editarPost = (id: number, descripcion: string | null) => api.patch<Post>(`/posts/${id}`, { descripcion })
+
 export const borrarPost = (id: number) => api.del(`/posts/${id}`)
 
 /** GET /usuarios/{id}/posts?tipo&limit&offset → Post[]. 403 si no autorizado */

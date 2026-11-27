@@ -11,7 +11,7 @@ import * as dmsApi from '../../services/dms'
 import { buscarUsuarios } from '../../services/temporal'
 import { useYo } from '../../stores/session'
 import { snackbar } from '../../stores/ui'
-import type { UsuarioResumen } from '../../types/api'
+import type { CreateMensajeBody, UsuarioResumen } from '../../types/api'
 
 interface Destino {
   clave: string
@@ -21,13 +21,18 @@ interface Destino {
   usuarioId: number | null
 }
 
-/** Compartir un post por DM (envía post_id a una o más conversaciones). */
-export function ShareSheet({ postId, open, onClose }: { postId: number; open: boolean; onClose: () => void }) {
-  if (!open) return null
-  return <ShareSheetAbierto postId={postId} onClose={onClose} />
+type Contenido = { postId: number; storyId?: undefined } | { storyId: number; postId?: undefined }
+
+export type ShareSheetProps = Contenido & { open: boolean; onClose: () => void }
+
+/** Enviar un post o una story por DM (post_id / story_id a una o más conversaciones). */
+export function ShareSheet(props: ShareSheetProps) {
+  if (!props.open) return null
+  const body: CreateMensajeBody = props.storyId !== undefined ? { story_id: props.storyId } : { post_id: props.postId }
+  return <ShareSheetAbierto body={body} onClose={props.onClose} />
 }
 
-function ShareSheetAbierto({ postId, onClose }: { postId: number; onClose: () => void }) {
+function ShareSheetAbierto({ body, onClose }: { body: CreateMensajeBody; onClose: () => void }) {
   const yo = useYo()
   const [q, setQ] = useState('')
   const [resultados, setResultados] = useState<UsuarioResumen[]>([])
@@ -88,7 +93,7 @@ function ShareSheetAbierto({ postId, onClose }: { postId: number; onClose: () =>
           const c = await dmsApi.crearConversacion({ participantes: [d.usuarioId] })
           convId = c.id
         }
-        if (convId !== null) await dmsApi.enviarMensaje(convId, { post_id: postId })
+        if (convId !== null) await dmsApi.enviarMensaje(convId, body)
       }
       snackbar('Enviado')
       onClose()
@@ -103,7 +108,7 @@ function ShareSheetAbierto({ postId, onClose }: { postId: number; onClose: () =>
     <Sheet
       open
       onClose={onClose}
-      title="Compartir"
+      title="Enviar"
       footer={
         <div className="p-3">
           <Button full disabled={sel.size === 0 || busy} onClick={() => void enviar()}>

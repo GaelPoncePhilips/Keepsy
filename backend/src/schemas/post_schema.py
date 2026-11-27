@@ -9,6 +9,7 @@ class CreatePostSchema(BaseModel):
     tipo: Literal["foto", "reel"] = "foto"
     url_imagen: UrlMedia
     url_video: UrlMedia | None = None
+    imagenes_extra: list[UrlMedia] = Field(default_factory=list, max_length=9)  # carrusel: hasta 10 fotos en total
     duracion_seg: int | None = Field(default=None, gt=0, le=3600)
     descripcion: str | None = Field(default=None, max_length=2200)
 
@@ -18,6 +19,8 @@ class CreatePostSchema(BaseModel):
             raise ValueError("Un reel necesita url_video")
         if self.tipo == "foto" and (self.url_video or self.duracion_seg):
             raise ValueError("url_video y duracion_seg son solo para reels")
+        if self.tipo == "reel" and self.imagenes_extra:
+            raise ValueError("Un reel no puede tener varias imágenes")
         return self
 
 

@@ -1,5 +1,7 @@
 /** Stories (HU7, HU8, HU9) y destacadas ordenables (EXTRA). */
-import type { Destacada, StoriesDeUsuario, Vista } from '../../types/api'
+import type { Destacada, EstadoLikeStory, LikeStory, StoriesDeUsuario, Vista } from '../../types/api'
+import { notificarMenciones } from '../menciones'
+import { notificar } from '../notificar'
 import type { Db, DbDestacada, DbStory } from '../db'
 import { addHours, nextId, nowIso } from '../db'
 import {
@@ -21,6 +23,7 @@ route('POST', '/stories', ({ db, yo, body }) => {
   const b = obj(body)
   const url_imagen = reqStr(b, 'url_imagen')
   const solo = optBool(b, 'solo_mejores_amigos') ?? false
+  const texto = optStr(b, 'texto')?.trim().slice(0, 200) || null
   const ahora = nowIso()
   const s: DbStory = {
     id: nextId(db, 'stories'),
@@ -29,8 +32,16 @@ route('POST', '/stories', ({ db, yo, body }) => {
     solo_mejores_amigos: solo,
     fecha_publicacion: ahora,
     fecha_vencimiento: addHours(ahora, 24),
+    texto,
   }
   db.stories.push(s)
+  if (texto) {
+    // Con "mejores amigos" solo se notifica a quien puede verla.
+    const excluir = solo
+      ? db.usuarios.filter((u) => !db.mejoresAmigos.some((m) => m.usuario_id === yo && m.amigo_id === u.id)).map((u) => u.id)
+      : []
+    notificarMenciones(db, yo, texto, 'mencion_story', { story_id: s.id, url_miniatura: s.url_imagen }, excluir)
+  }
   return storyDTO(db, s, yo)
 })
 
@@ -99,13 +110,61 @@ route('POST', '/stories/{id}/vista', ({ db, yo, params }) => {
   return undefined
 })
 
+route('GET', '/stories/{id}', ({ db, yo, params }) => {
+  const s = storyOr404(db, idParam(params, 'id'))
+  assertPuedeVerStory(db, yo, s)
+  return storyDTO(db, s, yo)
+})
+
+function estadoLike(db: Db, s: DbStory, yo: number): EstadoLikeStory {
+  return {
+    me_gusta: db.storyLikes.some((l) => l.story_id === s.id && l.usuario_id === yo),
+    cantidad_likes: s.usuario_id === yo ? db.storyLikes.filter((l) => l.story_id === s.id).length : 0,
+  }
+}
+
+route('POST', '/stories/{id}/like', ({ db, yo, params }) => {
+  const s = storyOr404(db, idParam(params, 'id'))
+  assertPuedeVerStory(db, yo, s)
+  if (!db.storyLikes.some((l) => l.story_id === s.id && l.usuario_id === yo)) {
+    db.storyLikes.push({ story_id: s.id, usuario_id: yo, fecha: nowIso() })
+    notificar(db, s.usuario_id, 'like_story', yo, { story_id: s.id, url_miniatura: s.url_imagen })
+  }
+  return estadoLike(db, s, yo)
+})
+
+route('DELETE', '/stories/{id}/like', ({ db, yo, params }) => {
+  const s = storyOr404(db, idParam(params, 'id'))
+  assertPuedeVerStory(db, yo, s)
+  db.storyLikes = db.storyLikes.filter((l) => !(l.story_id === s.id && l.usuario_id === yo))
+  db.notificaciones = db.notificaciones.filter(
+    (n) => !(n.tipo === 'like_story' && n.actor_id === yo && n.destinatario_id === s.usuario_id && n.story_id === s.id),
+  )
+  return estadoLike(db, s, yo)
+})
+
+route('GET', '/stories/{id}/likes', ({ db, yo, params }) => {
+  const s = storyOr404(db, idParam(params, 'id'))
+  if (s.usuario_id !== yo) throw forbidden('Solo el dueño ve a quién le gustó la story')
+  return db.storyLikes
+    .filter((l) => l.story_id === s.id)
+    .sort((a, b) => b.fecha.localeCompare(a.fecha))
+    .map((l): LikeStory => ({ ...resumen(usuario(db, l.usuario_id)), fecha: l.fecha }))
+})
+
 route('GET', '/stories/{id}/vistas', ({ db, yo, params }) => {
   const s = storyOr404(db, idParam(params, 'id'))
   if (s.usuario_id !== yo) throw forbidden('Solo el dueño ve quién vio la story')
   return db.vistas
     .filter((v) => v.story_id === s.id)
     .sort((a, b) => b.fecha.localeCompare(a.fecha))
-    .map((v): Vista => ({ ...resumen(usuario(db, v.usuario_id)), fecha: v.fecha }))
+    .map(
+      (v): Vista => ({
+        ...resumen(usuario(db, v.usuario_id)),
+        fecha: v.fecha,
+        me_gusta: db.storyLikes.some((l) => l.story_id === s.id && l.usuario_id === v.usuario_id),
+      }),
+    )
 })
 
 route('DELETE', '/stories/{id}', ({ db, yo, params }) => {
@@ -113,6 +172,9 @@ route('DELETE', '/stories/{id}', ({ db, yo, params }) => {
   if (s.usuario_id !== yo) throw forbidden('Solo el dueño puede borrar la story')
   db.stories = db.stories.filter((x) => x.id !== s.id)
   db.vistas = db.vistas.filter((v) => v.story_id !== s.id)
+  db.storyLikes = db.storyLikes.filter((l) => l.story_id !== s.id)
+  db.notificaciones = db.notificaciones.filter((n) => n.story_id !== s.id)
+  for (const m of db.mensajes) if (m.story_id === s.id) m.story_id = null
   for (const d of db.destacadas) d.story_ids = d.story_ids.filter((x) => x !== s.id)
   return undefined
 })

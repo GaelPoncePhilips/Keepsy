@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { Avatar } from '../../components/ui/Avatar'
 import { Icon } from '../../components/ui/Icon'
 import { IconButton } from '../../components/ui/IconButton'
+import { SugerenciasMencion, useMenciones } from '../../components/ui/MentionField'
 import { vibrar } from '../../lib/haptics'
 import { cn } from '../../lib/hooks'
 import { tiempoCorto } from '../../lib/time'
@@ -166,6 +167,7 @@ export function CajaComentario({
   const [busy, setBusy] = useState(false)
   const archivo = useRef<HTMLInputElement>(null)
   const input = useRef<HTMLInputElement>(null)
+  const menciones = useMenciones(texto, setTexto, input)
   const limpio = texto.trim()
   const hayContenido = limpio.length > 0 || media !== null
   // El backend limita el texto guardado (con las marcas de respuesta/multimedia) a MAX_COMENTARIO.
@@ -228,7 +230,7 @@ export function CajaComentario({
         </div>
       )}
       <form
-        className="flex min-h-11 items-center gap-0.5 rounded-full border border-outline-variant bg-surface-container-low pr-1.5 pl-4 transition-colors focus-within:border-primary"
+        className="relative flex min-h-11 items-center gap-0.5 rounded-full border border-outline-variant bg-surface-container-low pr-1.5 pl-4 transition-colors focus-within:border-primary"
         onSubmit={(e) => {
           e.preventDefault()
           void enviar()
@@ -238,6 +240,7 @@ export function CajaComentario({
           ref={input}
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
+          onKeyDown={menciones.onKeyDown}
           placeholder={respondiendoA ? 'Escribí tu respuesta…' : 'Añade un comentario…'}
           aria-label="Añade un comentario"
           maxLength={MAX_COMENTARIO + 50}
@@ -275,6 +278,7 @@ export function CajaComentario({
             <Icon name="arrow_upward" size={20} />
           </button>
         )}
+        <SugerenciasMencion menciones={menciones} lado="arriba" />
       </form>
       <StickerPicker open={stickers} onClose={() => setStickers(false)} onElegir={setMedia} />
     </div>

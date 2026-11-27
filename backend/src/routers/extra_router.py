@@ -80,6 +80,12 @@ def crear_album(payload: CreateAlbumSchema, db: Session = DB, actual: Usuario = 
     return AlbumService(db).crear(actual.id, payload.model_dump())
 
 
+@router.get("/albums/recomendados", response_model=list[AlbumItemDTO], tags=t)
+def albums_recomendados(pag: Pagina = Depends(), db: Session = DB, actual: Usuario = YO):
+    """Items de álbumes visibles de los que no soy miembro (se muestran en Explorar)."""
+    return AlbumService(db).recomendados(actual.id, pag.limit, pag.offset)
+
+
 @router.get("/albums/{album_id}", response_model=AlbumDTO, tags=t)
 def obtener_album(album_id: int, db: Session = DB, actual: Usuario = YO):
     return AlbumService(db).obtener(album_id, actual.id)
@@ -164,7 +170,7 @@ def mensajes(conv_id: int, limit: int = Query(30, ge=1, le=100), antes_de: int |
 @router.post("/conversaciones/{conv_id}/mensajes", response_model=MensajeDTO,
              status_code=status.HTTP_201_CREATED, tags=t)
 def enviar(conv_id: int, payload: CreateMensajeSchema, db: Session = DB, actual: Usuario = YO):
-    return DMService(db).enviar(conv_id, actual.id, payload.texto, payload.post_id)
+    return DMService(db).enviar(conv_id, actual.id, payload.texto, payload.post_id, payload.story_id)
 
 
 @router.post("/conversaciones/{conv_id}/aceptar", response_model=ConversacionDTO, tags=t)

@@ -12,6 +12,7 @@ class CreatePostDTO(BaseModel):
     url_video: str | None = None
     duracion_seg: int | None = None
     descripcion: str | None = None
+    imagenes_extra: list[str] = []
 
 
 class PostResponseDTO(BaseModel):
@@ -43,6 +44,7 @@ class PostDetalleDTO(BaseModel):
     cantidad_comentarios: int
     me_gusta: bool
     fecha_edicion: datetime | None = None
+    imagenes_extra: list[str] = []
     motivo: str | None = None
     cantidad_reposts: int = 0
     me_republique: bool = False

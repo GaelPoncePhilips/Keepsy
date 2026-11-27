@@ -19,8 +19,13 @@ export const OPCIONES_RADIAL = [
   { id: 'story', label: 'Story', icon: 'history_toggle_off', to: '/crear/story' },
 ] as const
 
-const ANGULOS = [-146, -110, -70, -34] // grados; -90 = arriba
-const RADIO = 116
+const ANGULOS = [-152, -114, -66, -28] // grados; -90 = arriba
+const RADIO = 124
+/**
+ * El abanico nace por ENCIMA del botón (no en su centro): así las opciones de los costados, con su
+ * etiqueta, quedan sobre la barra inferior y no tapan ni se mezclan con los otros botones.
+ */
+const ELEVACION = 30
 const MANTENER_MS = 220
 const MOVER_PX = 10
 const ZONA_MUERTA = 44 // cerca del centro no se elige nada
@@ -70,7 +75,11 @@ export function RadialCreate({ label }: { label: string }) {
 
   const medir = (): Centro => {
     const r = boton.current?.getBoundingClientRect()
-    return r ? { x: r.left + r.width / 2, y: r.top + 20 } : { x: 0, y: 0 }
+    if (!r) return { x: 0, y: 0 }
+    // En pantallas angostas, que las opciones de los costados no se salgan del borde.
+    const margen = RADIO + 40
+    const x = Math.min(Math.max(r.left + r.width / 2, margen), window.innerWidth - margen)
+    return { x, y: r.top - ELEVACION }
   }
   const abiertoEn = useRef(0)
   const abrir = (m: Modo) => {

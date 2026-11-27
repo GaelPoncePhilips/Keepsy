@@ -59,6 +59,16 @@ route('POST', '/albums', ({ db, yo, body }) => {
   return albumDTO(db, a)
 })
 
+route('GET', '/albums/recomendados', ({ db, yo, query }) => {
+  const items = db.items
+    .filter((i) => {
+      const a = db.albums.find((x) => x.id === i.album_id)
+      return !!a && !miembro(db, a.id, yo) && !hayBloqueo(db, yo, a.creador_id) && albumVisible(db, a, yo)
+    })
+    .sort((x, y) => y.fecha.localeCompare(x.fecha))
+  return paginar(items, query, 30)
+})
+
 route('GET', '/albums/{id}', ({ db, yo, params }) => albumDTO(db, visibleOr404(db, yo, idParam(params, 'id'))))
 
 route('PATCH', '/albums/{id}', ({ db, yo, params, body }) => {
@@ -105,6 +115,7 @@ route('POST', '/albums/{id}/invitaciones', ({ db, yo, params, body }) => {
   usuario(db, uid)
   if (hayBloqueo(db, yo, uid) || hayBloqueo(db, a.creador_id, uid)) throw badRequest('No podés invitar a este usuario')
   if (miembro(db, a.id, uid)) throw conflict('Ya es miembro o tiene una invitación pendiente')
+  if (!sigue(db, uid, yo)) throw badRequest('Solo podés invitar a personas que te siguen')
   db.miembros.push({ album_id: a.id, usuario_id: uid, rol: 'miembro', estado: 'pendiente', fecha: nowIso() })
   notificar(db, uid, 'invitacion_album', yo, { album_id: a.id, url_miniatura: albumDTO(db, a).portada_url, texto: a.titulo })
   return albumDTO(db, a)
@@ -189,6 +200,15 @@ route('POST', '/albums/{id}/items', ({ db, yo, params, body }) => {
       ya.url_miniatura = item.url_imagen
     } else notificar(db, otro, 'album_contenido', yo, { album_id: a.id, url_miniatura: item.url_imagen, texto: a.titulo })
   }
+  // @menciones en la descripción: solo a miembros aceptados del álbum (misma regla que mocks/menciones.ts).
+  const mencionados = new Set(
+    [...(item.descripcion ?? '').matchAll(/(^|[^\p{L}\p{N}_.@])@([\p{L}\p{N}_.]+)/gu)].map((m) => m[2].replace(/\.+$/, '').toLowerCase()),
+  )
+  for (const u of db.usuarios) {
+    if (!mencionados.has(u.username.toLowerCase()) || u.id === yo || hayBloqueo(db, yo, u.id)) continue
+    if (miembro(db, a.id, u.id)?.estado !== 'aceptado') continue
+    notificar(db, u.id, 'mencion', yo, { album_id: a.id, url_miniatura: item.url_imagen, texto: a.titulo })
+  }
   return item
 })
 
@@ -264,6 +284,13 @@ route('POST', '/conversaciones', ({ db, yo, body }) => {
   return conversacionDTO(db, c.id, yo)
 })
 
+/** Mensaje con los datos de la story (miniatura y autor) resueltos; null si la story ya no existe. */
+function mensajeDTO(db: Db, m: Mensaje): Mensaje {
+  const sid = m.story_id ?? null
+  const st = sid === null ? undefined : db.stories.find((x) => x.id === sid)
+  return { ...m, story_id: st ? sid : null, story_url_imagen: st?.url_imagen ?? null, story_usuario_id: st?.usuario_id ?? null }
+}
+
 route('GET', '/conversaciones/{id}/mensajes', ({ db, yo, params, query }) => {
   const id = idParam(params, 'id')
   participante(db, id, yo)
@@ -274,6 +301,7 @@ route('GET', '/conversaciones/{id}/mensajes', ({ db, yo, params, query }) => {
     .filter((m) => m.conversacion_id === id && (antes === null || m.id < Number(antes)))
     .sort((a, b) => b.id - a.id)
     .slice(0, limit)
+    .map((m) => mensajeDTO(db, m))
   return res
 })
 
@@ -284,16 +312,22 @@ route('POST', '/conversaciones/{id}/mensajes', ({ db, yo, params, body }) => {
   const b = obj(body)
   const texto = optStr(b, 'texto', 1000)?.trim() || null
   const postId = typeof b.post_id === 'number' ? b.post_id : null
-  if (!texto && postId === null) throw badRequest('Escribí un mensaje o compartí un post')
+  const storyId = typeof b.story_id === 'number' ? b.story_id : null
+  if (!texto && postId === null && storyId === null) throw badRequest('Escribí un mensaje o compartí un post o una story')
+  if (storyId !== null) {
+    const st = db.stories.find((x) => x.id === storyId)
+    if (!st) throw notFound('Story no encontrada')
+    assertPuedeVer(db, yo, st.usuario_id)
+  }
   if (postId !== null) {
     const post = postOr404(db, postId)
     assertPuedeVer(db, yo, post.usuario_id)
   }
   p.estado = 'aceptada'
-  const m: Mensaje = { id: nextId(db, 'mensajes'), conversacion_id: id, emisor_id: yo, texto, post_id: postId, fecha: nowIso() }
+  const m: Mensaje = { id: nextId(db, 'mensajes'), conversacion_id: id, emisor_id: yo, texto, post_id: postId, story_id: storyId, fecha: nowIso() }
   db.mensajes.push(m)
   p.ultima_lectura = m.fecha
-  return m
+  return mensajeDTO(db, m)
 })
 
 route('POST', '/conversaciones/{id}/aceptar', ({ db, yo, params }) => {

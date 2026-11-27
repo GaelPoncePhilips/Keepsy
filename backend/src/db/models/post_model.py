@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import ARRAY, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.sql import func
 
 from src.db.connection import Base
@@ -16,3 +16,4 @@ class Post(Base):
     url_video = Column(String)  # EXTRA: solo reels
     duracion_seg = Column(Integer)  # EXTRA: solo reels
     fecha_edicion = Column(DateTime)  # EXTRA
+    imagenes_extra = Column(ARRAY(String), nullable=False, server_default="{}")  # EXTRA: carrusel (después de url_imagen)

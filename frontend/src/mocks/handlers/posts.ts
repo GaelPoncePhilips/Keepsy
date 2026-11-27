@@ -2,6 +2,7 @@
 import type { HashtagTendencia, TipoPost } from '../../types/api'
 import type { Db, DbPost } from '../db'
 import { hoursAgo, nextId, nowIso } from '../db'
+import { notificarMenciones } from '../menciones'
 import { notificar, quitarNotificacion } from '../notificar'
 import {
   assertDueno,
@@ -43,14 +44,26 @@ route('POST', '/posts', ({ db, yo, body }) => {
     duracion_seg: tipo === 'reel' ? (optNum(b, 'duracion_seg') ?? null) : null,
     descripcion: descripcion?.trim() ? descripcion.trim() : null,
     fecha_publicacion: nowIso(),
+    imagenes_extra: Array.isArray(b.imagenes_extra)
+      ? b.imagenes_extra.filter((x): x is string => typeof x === 'string').slice(0, 9)
+      : [],
   }
   db.posts.push(p)
+  notificarMenciones(db, yo, p.descripcion, 'mencion', { post_id: p.id, url_miniatura: p.url_imagen })
   return postDTO(db, p, yo)
 })
 
 route('GET', '/posts/{id}', ({ db, yo, params }) => {
   const p = postOr404(db, idParam(params, 'id'))
   assertPuedeVer(db, yo, p.usuario_id)
+  return postDTO(db, p, yo)
+})
+
+route('PATCH', '/posts/{id}', ({ db, yo, params, body }) => {
+  const p = postOr404(db, idParam(params, 'id'))
+  if (p.usuario_id !== yo) throw forbidden('Solo el autor puede editar la publicación')
+  const d = optStr(obj(body), 'descripcion', 2200)
+  p.descripcion = d?.trim() ? d.trim() : null
   return postDTO(db, p, yo)
 })
 
@@ -129,6 +142,10 @@ route('POST', '/posts/{id}/comentarios', ({ db, yo, params, body }) => {
   const c = { id: nextId(db, 'comentarios'), post_id: p.id, usuario_id: yo, texto, fecha: nowIso() }
   db.comentarios.push(c)
   notificar(db, p.usuario_id, 'comentario', yo, { post_id: p.id, url_miniatura: p.url_imagen, texto })
+  // El dueño ya recibe 'comentario'; el resto de los mencionados tiene que poder ver el post.
+  notificarMenciones(db, yo, texto, 'mencion_comentario', { post_id: p.id, url_miniatura: p.url_imagen, texto }, [p.usuario_id], (id) =>
+    puedeVer(db, id, p.usuario_id) && !hayBloqueo(db, id, p.usuario_id),
+  )
   return comentarioDTO(db, c)
 })
 

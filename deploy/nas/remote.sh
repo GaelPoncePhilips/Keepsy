@@ -53,10 +53,11 @@ echo "→ Esperando a la API"
 ok=""
 for _ in $(seq 1 30); do
   # /health no toca la base; un login inválido sí (tiene que dar 401, no 500).
-  if curl -fsS -o /dev/null http://127.0.0.1:8096/health; then
+  # (Email con dominio válido: uno reservado como .invalid da 422 en la validación y nunca llega a la base.)
+  if curl -fs -o /dev/null http://127.0.0.1:8096/health; then
     code="$(curl -s -o /dev/null -w '%{http_code}' -H 'content-type: application/json' \
-      -d '{"email":"nadie@keepsy.invalid","password":"x"}' http://127.0.0.1:8096/api/auth/login)"
-    if [ "$code" = 401 ] || [ "$code" = 422 ]; then ok=1; break; fi
+      -d '{"email":"deploy.healthcheck@example.com","password":"xxxxxxxx"}' http://127.0.0.1:8096/api/auth/login)"
+    if [ "$code" = 401 ]; then ok=1; break; fi
     echo "  login de prueba devolvió $code"
   fi
   sleep 1

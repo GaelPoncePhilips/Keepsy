@@ -68,9 +68,10 @@ class CreateConversacionSchema(BaseModel):
 class CreateMensajeSchema(BaseModel):
     texto: str | None = Field(default=None, min_length=1, max_length=1000)
     post_id: int | None = None
+    story_id: int | None = None
 
     @model_validator(mode="after")
     def algo(self):
-        if self.texto is None and self.post_id is None:
-            raise ValueError("El mensaje necesita texto o post_id")
+        if self.texto is None and self.post_id is None and self.story_id is None:
+            raise ValueError("El mensaje necesita texto, post_id o story_id")
         return self

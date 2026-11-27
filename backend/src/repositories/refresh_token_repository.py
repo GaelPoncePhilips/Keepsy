@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -22,7 +22,7 @@ class RefreshTokenRepository:
         token = secrets.token_urlsafe(48)
         self.db.add(RefreshToken(
             usuario_id=usuario_id, token_hash=_hash(token), familia=familia or uuid.uuid4(),
-            expira_en=datetime.now() + timedelta(days=dias),
+            expira_en=func.localtimestamp() + timedelta(days=dias),  # hora de la base, no la del proceso
         ))
         self.db.commit()
         return token

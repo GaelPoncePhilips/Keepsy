@@ -3,6 +3,7 @@
  * Perfil propio: mantener presionada una destacada (~400 ms) la "levanta" y se arrastra para reordenar;
  * al soltar se guarda el orden (PUT /usuarios/{id}/destacadas/orden). Funciona con dedo y con mouse.
  */
+import { formaStory } from '../../lib/formasM3'
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { Icon } from '../../components/ui/Icon'
@@ -86,14 +87,26 @@ export function HighlightsRow({ usuarioId, esPropio }: { usuarioId: number; esPr
   }, [ordenKey])
 
   // Mientras se arrastra con el dedo, el scroll horizontal de la fila no debe moverse.
+  // La rueda vertical del mouse desplaza la fila en horizontal.
   useEffect(() => {
     const ul = ulRef.current
     if (!ul) return
     const h = (e: TouchEvent) => {
       if (gesto.current?.arrastrando) e.preventDefault()
     }
+    const rueda = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) >= Math.abs(e.deltaY) || ul.scrollWidth <= ul.clientWidth) return
+      const max = ul.scrollWidth - ul.clientWidth
+      if ((e.deltaY < 0 && ul.scrollLeft <= 0) || (e.deltaY > 0 && ul.scrollLeft >= max)) return
+      e.preventDefault()
+      ul.scrollLeft += e.deltaY
+    }
     ul.addEventListener('touchmove', h, { passive: false })
-    return () => ul.removeEventListener('touchmove', h)
+    ul.addEventListener('wheel', rueda, { passive: false })
+    return () => {
+      ul.removeEventListener('touchmove', h)
+      ul.removeEventListener('wheel', rueda)
+    }
   }, [data])
 
   if (!esPropio && lista.length === 0) return null
@@ -184,6 +197,8 @@ export function HighlightsRow({ usuarioId, esPropio }: { usuarioId: number; esPr
         g.movido = true
         window.clearTimeout(g.timer)
       }
+      // Con mouse, arrastrar desplaza la fila (en táctil lo hace el scroll nativo).
+      if (g.movido && g.tipo === 'mouse' && ulRef.current) ulRef.current.scrollLeft -= e.movementX
       return
     }
     punteroX.current = e.clientX
@@ -223,7 +238,7 @@ export function HighlightsRow({ usuarioId, esPropio }: { usuarioId: number; esPr
           {arrastrando !== null ? 'Arrastrá y soltá para cambiar el orden' : 'Mantené presionada una destacada y arrastrala'}
         </p>
       )}
-      <ul ref={ulRef} className={cn('no-scrollbar flex gap-4 overflow-x-auto px-4 pb-1', arrastrando !== null && 'overflow-x-hidden')}>
+      <ul ref={ulRef} className={cn('no-scrollbar flex gap-4 overflow-x-auto overscroll-x-contain scroll-px-4 px-4 pb-1', arrastrando !== null && 'overflow-x-hidden')}>
         {lista.map((d) => {
           const portada = d.portada_url ?? d.stories[0]?.url_imagen
           const levantada = arrastrando === d.id
@@ -258,12 +273,13 @@ export function HighlightsRow({ usuarioId, esPropio }: { usuarioId: number; esPr
                   if (esPropio && gesto.current?.tipo !== 'touch' && !gesto.current?.arrastrando) setMenu(d)
                 }}
                 className={cn(
-                  'block touch-manipulation rounded-full border border-outline-variant p-[2px] select-none [-webkit-touch-callout:none]',
-                  levantada && 'border-primary shadow-xl',
+                  'block touch-manipulation p-[2px] select-none [-webkit-touch-callout:none]',
+                  levantada ? 'bg-primary' : 'bg-outline-variant',
                 )}
+                style={{ clipPath: formaStory(false) }}
                 aria-label={`Destacada ${d.titulo}`}
               >
-                <span className="block size-[77px] overflow-hidden rounded-full bg-surface-container-highest">
+                <span className="block size-[77px] overflow-hidden bg-surface-container-highest" style={{ clipPath: formaStory(false) }}>
                   {portada && <img src={portada} alt="" draggable={false} className="pointer-events-none size-full object-cover" />}
                 </span>
               </button>
@@ -280,7 +296,8 @@ export function HighlightsRow({ usuarioId, esPropio }: { usuarioId: number; esPr
               type="button"
               onClick={() => setCreando(true)}
               aria-label="Nueva destacada"
-              className="state flex size-[83px] items-center justify-center rounded-full border border-outline-variant"
+              className="state flex size-[83px] items-center justify-center bg-surface-container-high"
+              style={{ clipPath: formaStory(false) }}
             >
               <Icon name="add" size={36} />
             </button>

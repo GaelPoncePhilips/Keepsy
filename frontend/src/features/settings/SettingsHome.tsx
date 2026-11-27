@@ -49,13 +49,13 @@ function Fila({ icon, label, to, onClick, extra, destructive }: { icon: string; 
 export function SettingsPage() {
   const yo = useYo()
   const navigate = useNavigate()
-  const { tema, setTema, estilo, setEstilo } = useUi()
+  const { tema, setTema } = useUi()
   const [dev, setDev] = useState(false)
   const [confirmarPublica, setConfirmarPublica] = useState(false)
   const [busy, setBusy] = useState(false)
   const pendientes = useAsync(() => usuariosApi.solicitudes(yo.id, { limit: 50 }).catch(() => []), [yo.id])
   const nPend = pendientes.data?.length ?? 0
-  const { instalable, instalada, instalar } = usePwa()
+  const { instalable, instalada, instalar, abrirAyudaIos } = usePwa()
 
   const actualizar = async (body: UpdateUsuarioBody) => {
     setBusy(true)
@@ -125,14 +125,14 @@ export function SettingsPage() {
       </Seccion>
       {!instalada && (
         <Seccion titulo="App">
-          {instalable ? (
+          {esIOS() ? (
+            <Fila icon="install_mobile" label="Instalar Keepsy en este dispositivo" onClick={abrirAyudaIos} />
+          ) : instalable ? (
             <Fila icon="install_mobile" label="Instalar Keepsy en este dispositivo" onClick={() => void instalar()} />
           ) : (
             <p className="type-body-m flex items-start gap-4 px-4 py-3 text-on-surface-variant">
               <Icon name="install_mobile" className="shrink-0" />
-              {esIOS()
-                ? 'Para instalarla: tocá Compartir y elegí "Agregar a inicio".'
-                : 'Para instalarla, abrí Keepsy por https (o localhost) y usá "Instalar app" en el menú del navegador.'}
+              Para instalarla, abrí Keepsy por https (o localhost) y usá "Instalar app" en el menú del navegador.
             </p>
           )}
         </Seccion>
@@ -143,26 +143,6 @@ export function SettingsPage() {
           <FilterChip label="Oscuro" icon="dark_mode" selected={tema === 'oscuro'} onClick={() => setTema('oscuro')} />
           <FilterChip label="Sistema" icon="contrast" selected={tema === 'sistema'} onClick={() => setTema('sistema')} />
         </div>
-      </Seccion>
-      <Seccion titulo="Interfaz">
-        <div className="flex flex-wrap gap-2 px-4 py-2">
-          <FilterChip label="Clásica" icon="grid_view" selected={estilo.ui === 'clasica'} onClick={() => setEstilo({ ui: 'clasica' })} />
-          <FilterChip label="Blob" icon="bubble_chart" selected={estilo.ui === 'blob'} onClick={() => setEstilo({ ui: 'blob' })} />
-        </div>
-        {estilo.ui === 'blob' && (
-          <>
-            <p className="type-label-l px-4 pt-2 text-on-surface-variant">Bordes</p>
-            <div className="flex flex-wrap gap-2 px-4 py-2">
-              <FilterChip label="Irregulares" icon="water_drop" selected={estilo.bordes === 'irregulares'} onClick={() => setEstilo({ bordes: 'irregulares' })} />
-              <FilterChip label="Sólidos" icon="rounded_corner" selected={estilo.bordes === 'solidos'} onClick={() => setEstilo({ bordes: 'solidos' })} />
-            </div>
-            <p className="type-label-l px-4 pt-2 text-on-surface-variant">Anillos de stories</p>
-            <div className="flex flex-wrap gap-2 px-4 py-2">
-              <FilterChip label="Con formas" icon="interests" selected={estilo.anillos === 'formas'} onClick={() => setEstilo({ anillos: 'formas' })} />
-              <FilterChip label="Regulares" icon="radio_button_unchecked" selected={estilo.anillos === 'regulares'} onClick={() => setEstilo({ anillos: 'regulares' })} />
-            </div>
-          </>
-        )}
       </Seccion>
       <Seccion titulo="Inicio de sesión">
         <Fila icon="switch_account" label="Cambiar de cuenta (dev)" onClick={() => setDev(true)} />

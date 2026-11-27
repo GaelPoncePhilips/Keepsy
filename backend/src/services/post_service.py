@@ -6,6 +6,7 @@ from src.db.models.usuario_model import Usuario
 from src.dtos.post_dto import ComentarioDTO, CreatePostDTO, PostDetalleDTO
 from src.dtos.usuario_dto import UsuarioResumenDTO
 from src.repositories.post_repository import PostRepository
+from src.services.menciones import extraer_menciones, notificar_menciones
 from src.services.permisos_service import PermisosService
 from src.utils.errors import ForbiddenError, NotFoundError
 
@@ -20,6 +21,7 @@ def extraer_hashtags(texto: str | None) -> list[str]:
 
 class PostService:
     def __init__(self, db: Session):
+        self.db = db
         self.repo = PostRepository(db)
         self.permisos = PermisosService(db)
 
@@ -31,9 +33,23 @@ class PostService:
         self.permisos.exigir_ver_contenido(post.usuario_id, yo)
         return post
 
+    def _sin_acceso(self, dueno_id: int, usernames: list[str]) -> set[int]:
+        """Ids de los usuarios mencionados que no pueden ver el contenido de :dueno_id."""
+        dueno = self.permisos.usuarios.buscar_activo(dueno_id)
+        fuera: set[int] = set()
+        for nombre in usernames:
+            u = self.permisos.usuarios.buscar_por_username(nombre)
+            if u is None or dueno is None:
+                continue
+            if self.permisos.usuarios.hay_bloqueo(dueno_id, u.id) or not self.permisos.puede_ver_contenido(dueno, u.id):
+                fuera.add(u.id)
+        return fuera
+
     # ---------- posts
     def publicar(self, dto: CreatePostDTO) -> PostDetalleDTO:
         post = self.repo.crear_con_hashtags(dto.model_dump(), extraer_hashtags(dto.descripcion))
+        notificar_menciones(self.db, dto.usuario_id, post.descripcion, "mencion", post_id=post.id)
+        self.db.commit()
         return PostDetalleDTO(**self.repo.detalle(post.id, dto.usuario_id))
 
     def obtener(self, post_id: int, yo: int) -> PostDetalleDTO:
@@ -50,7 +66,11 @@ class PostService:
             raise NotFoundError("Post no encontrado")
         if post.usuario_id != yo:
             raise ForbiddenError("Solo el autor puede editar el post")
+        antes = set(extraer_menciones(post.descripcion))
         self.repo.editar_descripcion(post, descripcion, extraer_hashtags(descripcion))
+        nuevas = " ".join(f"@{m}" for m in extraer_menciones(descripcion) if m not in antes)
+        notificar_menciones(self.db, yo, nuevas, "mencion", post_id=post_id)
+        self.db.commit()
         return PostDetalleDTO(**self.repo.detalle(post_id, yo))
 
     def editar_comentario(self, comentario_id: int, yo: int, texto: str) -> ComentarioDTO:
@@ -99,6 +119,10 @@ class PostService:
     def comentar(self, post_id: int, yo: int, texto: str) -> ComentarioDTO:
         post = self._post_visible(post_id, yo)
         c = self.repo.comentar(yo, post, texto)
+        # El dueño ya recibe 'comentario'; los mencionados además tienen que poder ver el post.
+        excluir = {post.usuario_id} | self._sin_acceso(post.usuario_id, extraer_menciones(texto))
+        notificar_menciones(self.db, yo, texto, "mencion_comentario", excluir, post_id=post.id, comentario_id=c.id)
+        self.db.commit()
         autor = self.permisos.usuarios.buscar_activo(yo)
         return ComentarioDTO(id=c.id, post_id=c.post_id, usuario_id=c.usuario_id,
                              autor_username=autor.username, texto=c.texto, fecha=c.fecha)

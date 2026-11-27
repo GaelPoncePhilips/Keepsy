@@ -5,10 +5,13 @@ import { navegarConZoom } from '../../lib/transicion'
 import { HuecoPost } from './HuecoPost'
 import { IconButton } from '../../components/ui/IconButton'
 import { Icon } from '../../components/ui/Icon'
-import { ActionMenu, Confirm, type MenuAction } from '../../components/ui/Overlay'
+import { ActionMenu, Confirm, Dialog, type MenuAction } from '../../components/ui/Overlay'
 import { cn, useIsMobile } from '../../lib/hooks'
-import { numeroCorto, tiempoCorto } from '../../lib/time'
+import { fechaLarga, numeroCorto, tiempoLargo } from '../../lib/time'
 import { vibrar } from '../../lib/haptics'
+import { emitirLike, emitirPostEditado, emitirRepost, useDescripcion, useEventoLike, useEventoRepost } from '../../lib/eventos'
+import { Button } from '../../components/ui/Button'
+import { MentionField } from '../../components/ui/MentionField'
 import { mensajeDeError } from '../../services/client'
 import * as postsApi from '../../services/posts'
 import { alternarGuardado, estaGuardado } from '../../services/temporal/local'
@@ -46,20 +49,32 @@ function aspectoDe(url: string): string {
 export function useLike(post: Post) {
   const [meGusta, setMeGusta] = useState(post.me_gusta)
   const [likes, setLikes] = useState(post.cantidad_likes)
+  // Si el post se recarga (feed actualizado), se toma el estado del servidor.
+  useEffect(() => {
+    setMeGusta(post.me_gusta)
+    setLikes(post.cantidad_likes)
+  }, [post.id, post.me_gusta, post.cantidad_likes])
+  useEventoLike((d) => {
+    if (d.postId !== post.id) return
+    setMeGusta(d.meGusta)
+    setLikes(d.cantidad)
+  })
   const busy = useRef(false)
   const set = async (valor: boolean) => {
     if (busy.current || valor === meGusta) return
     busy.current = true
     const prev = { meGusta, likes }
+    const optimista = Math.max(0, likes + (valor ? 1 : -1))
     setMeGusta(valor)
-    setLikes((n) => n + (valor ? 1 : -1))
+    setLikes(optimista)
     vibrar(valor ? 'click' : 'tick')
     try {
       if (valor) {
         const p = await postsApi.darLike(post.id)
-        setLikes(p.cantidad_likes)
+        emitirLike({ postId: post.id, meGusta: true, cantidad: p.cantidad_likes })
       } else {
         await postsApi.quitarLike(post.id)
+        emitirLike({ postId: post.id, meGusta: false, cantidad: optimista })
       }
     } catch (e) {
       setMeGusta(prev.meGusta)
@@ -77,6 +92,12 @@ export function useRepost(post: Post) {
   const [republicado, setRepublicado] = useState(post.me_republique ?? false)
   const [cantidad, setCantidad] = useState(post.cantidad_reposts ?? 0)
   const busy = useRef(false)
+  // Otra vista del mismo post (menú ⋯, modal, perfil) cambió la republicación: sincronizar.
+  useEventoRepost((d) => {
+    if (d.postId !== post.id || busy.current) return
+    setRepublicado(d.republicado)
+    setCantidad(d.cantidad)
+  })
   const alternar = async () => {
     if (busy.current) return
     busy.current = true
@@ -88,6 +109,7 @@ export function useRepost(post: Post) {
       const r = quiere ? await republicar(post.id) : await quitarRepublicacion(post.id)
       setRepublicado(r.me_republique)
       setCantidad(r.cantidad_reposts)
+      emitirRepost({ postId: post.id, republicado: r.me_republique, cantidad: r.cantidad_reposts })
       snackbar(quiere ? 'Republicado en tu perfil' : 'Quitaste la republicación')
     } catch (e) {
       setRepublicado(!quiere)
@@ -156,6 +178,8 @@ export function PostMedia({ post, onDoubleLike, onOpen, fill }: { post: Post; on
           className={cn('size-full', fill ? 'object-contain' : 'object-cover')}
           aria-label={post.descripcion ?? `Reel de ${post.autor_username}`}
         />
+      ) : (post.imagenes_extra?.length ?? 0) > 0 ? (
+        <Carrusel post={post} fill={fill} />
       ) : (
         <img
           src={post.url_imagen}
@@ -164,11 +188,6 @@ export function PostMedia({ post, onDoubleLike, onOpen, fill }: { post: Post; on
           draggable={false}
           className={cn('size-full', fill ? 'object-contain' : 'object-cover')}
         />
-      )}
-      {post.tipo === 'reel' && (
-        <span className="absolute top-3 right-3 text-white drop-shadow">
-          <Icon name="movie" fill size={22} />
-        </span>
       )}
       {corazon > 0 && (
         <span key={corazon} className="heart-pop pointer-events-none absolute inset-0 flex items-center justify-center text-white drop-shadow-lg">
@@ -179,13 +198,113 @@ export function PostMedia({ post, onDoubleLike, onOpen, fill }: { post: Post; on
   )
 }
 
+/** Varias fotos: se deslizan con scroll-snap (dedo, trackpad) o con las flechas; puntos abajo. */
+function Carrusel({ post, fill }: { post: Post; fill?: boolean }) {
+  const fotos = [post.url_imagen, ...(post.imagenes_extra ?? [])]
+  const ref = useRef<HTMLDivElement>(null)
+  const [i, setI] = useState(0)
+  const ir = (n: number) => {
+    const el = ref.current
+    if (!el) return
+    el.scrollTo({ left: n * el.clientWidth, behavior: 'smooth' })
+  }
+  return (
+    <>
+      <div
+        ref={ref}
+        className="no-scrollbar flex size-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+        onScroll={(e) => {
+          const el = e.currentTarget
+          setI(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
+        }}
+      >
+        {fotos.map((url, k) => (
+          <img
+            key={`${k}-${url}`}
+            src={url}
+            alt={`${post.descripcion ?? `Publicación de ${post.autor_username}`} (${k + 1} de ${fotos.length})`}
+            loading="lazy"
+            draggable={false}
+            className={cn('size-full shrink-0 snap-center', fill ? 'object-contain' : 'object-cover')}
+          />
+        ))}
+      </div>
+      <span className="type-label-s pointer-events-none absolute top-3 right-3 rounded-full bg-black/60 px-2 py-0.5 text-white">
+        {i + 1}/{fotos.length}
+      </span>
+      {i > 0 && (
+        <button
+          type="button"
+          aria-label="Foto anterior"
+          onClick={(e) => {
+            e.stopPropagation()
+            ir(i - 1)
+          }}
+          className="absolute top-1/2 left-2 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-black md:flex"
+        >
+          <Icon name="chevron_left" size={20} />
+        </button>
+      )}
+      {i < fotos.length - 1 && (
+        <button
+          type="button"
+          aria-label="Foto siguiente"
+          onClick={(e) => {
+            e.stopPropagation()
+            ir(i + 1)
+          }}
+          className="absolute top-1/2 right-2 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-black md:flex"
+        >
+          <Icon name="chevron_right" size={20} />
+        </button>
+      )}
+      <span className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center gap-1" aria-hidden="true">
+        {fotos.map((_, k) => (
+          <span key={k} className={cn('size-1.5 rounded-full transition-colors', k === i ? 'bg-white' : 'bg-white/45')} />
+        ))}
+      </span>
+    </>
+  )
+}
+
 /** Menú ⋯ del post: eliminar (propio) o bloquear / ir / copiar enlace (ajeno). */
 export function PostMenu({ post, onDeleted, onBlocked }: { post: Post; onDeleted?: () => void; onBlocked?: () => void }) {
   const yo = useYo()
   const navigate = useNavigate()
   const [menu, setMenu] = useState(false)
   const [confirm, setConfirm] = useState<'borrar' | 'bloquear' | null>(null)
+  const descActual = useDescripcion(post.id, post.descripcion)
+  const [editando, setEditando] = useState<string | null>(null)
+  const [guardando, setGuardando] = useState(false)
+  const guardarEdicion = async () => {
+    if (editando === null) return
+    setGuardando(true)
+    try {
+      const p = await postsApi.editarPost(post.id, editando.trim() || null)
+      emitirPostEditado(post.id, p.descripcion)
+      snackbar('Publicación editada')
+      setEditando(null)
+    } catch (e) {
+      snackbar(mensajeDeError(e))
+    } finally {
+      setGuardando(false)
+    }
+  }
+  const [republicado, setRepublicado] = useState(post.me_republique ?? post.repostado_por?.id === yo.id)
+  useEventoRepost((d) => {
+    if (d.postId === post.id) setRepublicado(d.republicado)
+  })
   const mio = post.usuario_id === yo.id
+  const quitarRepost = async () => {
+    try {
+      const r = await quitarRepublicacion(post.id)
+      setRepublicado(false)
+      emitirRepost({ postId: post.id, republicado: false, cantidad: r.cantidad_reposts })
+      snackbar('Quitaste la republicación')
+    } catch (e) {
+      snackbar(mensajeDeError(e))
+    }
+  }
   const copiar = () => {
     const url = `${window.location.origin}/p/${post.id}`
     navigator.clipboard
@@ -195,10 +314,13 @@ export function PostMenu({ post, onDeleted, onBlocked }: { post: Post; onDeleted
   }
   const acciones: MenuAction[] = mio
     ? [
-        { label: 'Eliminar', icon: 'delete', destructive: true, onClick: () => setConfirm('borrar') },
+        { label: 'Editar', icon: 'edit', onClick: () => setEditando(descActual ?? '') },
+        { label: 'Ir a la publicación', icon: 'open_in_new', onClick: () => navigate(`/p/${post.id}`) },
         { label: 'Copiar enlace', icon: 'link', onClick: copiar },
+        { label: 'Eliminar', icon: 'delete', destructive: true, onClick: () => setConfirm('borrar') },
       ]
     : [
+        ...(republicado ? [{ label: 'Quitar republicación', icon: 'repeat', onClick: () => void quitarRepost() } satisfies MenuAction] : []),
         { label: 'Bloquear', icon: 'block', destructive: true, onClick: () => setConfirm('bloquear') },
         { label: 'Ir a la publicación', icon: 'open_in_new', onClick: () => navigate(`/p/${post.id}`) },
         { label: 'Copiar enlace', icon: 'link', onClick: copiar },
@@ -225,6 +347,32 @@ export function PostMenu({ post, onDeleted, onBlocked }: { post: Post; onDeleted
     <>
       <IconButton icon="more_horiz" label="Más opciones" size={22} onClick={() => setMenu(true)} />
       <ActionMenu open={menu} onClose={() => setMenu(false)} actions={acciones} />
+      <Dialog
+        open={editando !== null}
+        onClose={() => setEditando(null)}
+        title="Editar descripción"
+        width={480}
+        actions={
+          <>
+            <Button variant="text" onClick={() => setEditando(null)}>
+              Cancelar
+            </Button>
+            <Button disabled={guardando || (editando ?? '').trim() === (descActual ?? '').trim()} onClick={() => void guardarEdicion()}>
+              {guardando ? 'Guardando…' : 'Guardar'}
+            </Button>
+          </>
+        }
+      >
+        <MentionField
+          label="Descripción"
+          value={editando ?? ''}
+          onChange={setEditando}
+          multiline
+          maxLength={2200}
+          autoFocus
+          hint="Los #hashtags y las @menciones se detectan solos"
+        />
+      </Dialog>
       <Confirm
         open={confirm === 'borrar'}
         title="¿Eliminar publicación?"
@@ -327,7 +475,7 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
     if (isMobile) setSheet('comentarios')
     else navigate(`/p/${post.id}`, { state: { background: location } })
   }
-  const desc = post.descripcion ?? ''
+  const desc = useDescripcion(post.id, post.descripcion) ?? ''
   const larga = desc.length > LIMITE_DESCRIPCION
 
   return (
@@ -359,7 +507,6 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
                 <Link to={`/${post.autor_username}`} className="type-title-s emphasized block truncate font-semibold">
                   {post.autor_username}
                 </Link>
-                <span className="type-body-s block text-on-surface-variant">{tiempoCorto(post.fecha_publicacion)}</span>
               </p>
               <PostMenu post={post} onDeleted={onDeleted} onBlocked={onDeleted} />
             </>
@@ -377,7 +524,6 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
               <Link to={`/${post.autor_username}`} className="emphasized font-semibold">
                 {post.autor_username}
               </Link>
-              <span className="text-on-surface-variant"> • {tiempoCorto(post.fecha_publicacion)}</span>
             </p>
             <PostMenu post={post} onDeleted={onDeleted} onBlocked={onDeleted} />
           </header>
@@ -433,6 +579,9 @@ export function PostCard({ post, onDeleted }: { post: Post; onDeleted?: () => vo
             </div>
           )
         })}
+        <time dateTime={post.fecha_publicacion} title={fechaLarga(post.fecha_publicacion)} className="type-label-s block text-on-surface-variant">
+          {tiempoLargo(post.fecha_publicacion)}
+        </time>
         <CajaComentario
           postId={post.id}
           onComentado={(c) => {

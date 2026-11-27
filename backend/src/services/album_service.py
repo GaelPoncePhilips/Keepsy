@@ -11,6 +11,7 @@ from src.dtos.extra_dto import AlbumDTO, AlbumItemDTO, AlbumMiembroDTO
 from src.db.models.notificacion_model import Notificacion
 from src.repositories.notificacion_repository import NotificacionRepository
 from src.repositories.usuario_repository import UsuarioRepository
+from src.services.menciones import extraer_menciones, notificar_menciones
 from src.utils.errors import BadRequestError, ConflictError, ForbiddenError, NotFoundError
 
 VISIBLE = """(
@@ -102,6 +103,10 @@ class AlbumService:
             raise BadRequestError("No podés invitar a este usuario")
         if self._miembro(album_id, invitado_id):
             raise ConflictError("Ya es miembro o tiene una invitación pendiente")
+        if not self.db.execute(text(
+            "SELECT 1 FROM seguidores WHERE seguidor_id = :inv AND seguido_id = :yo AND estado = 'aceptado'"),
+            {"inv": invitado_id, "yo": yo}).first():
+            raise BadRequestError("Solo podés invitar a personas que te siguen")
         self.db.add(AlbumMiembro(album_id=album_id, usuario_id=invitado_id))
         NotificacionRepository(self.db).crear(invitado_id, yo, "invitacion_album", album_id=album_id)
         self.db.commit()
@@ -150,6 +155,21 @@ class AlbumService:
             AlbumItem.fecha.desc(), AlbumItem.id.desc()).limit(limit).offset(offset).all()
         return self._con_social(items, yo)
 
+    def recomendados(self, yo: int, limit: int, offset: int) -> list[AlbumItemDTO]:
+        """Fotos y videos recientes de álbumes que puedo ver y de los que no soy miembro (para Explorar)."""
+        ids = [r[0] for r in self.db.execute(text(f"""
+            SELECT i.id FROM album_item i JOIN album a ON a.id = i.album_id
+            JOIN usuario u ON u.id = i.usuario_id AND u.eliminado_en IS NULL
+            WHERE {VISIBLE}
+              AND NOT EXISTS (SELECT 1 FROM album_miembro m WHERE m.album_id = a.id AND m.usuario_id = :yo)
+              AND i.fecha > LOCALTIMESTAMP - INTERVAL '30 days'
+            ORDER BY (SELECT count(*) FROM album_item_like l WHERE l.item_id = i.id) DESC, i.fecha DESC, i.id DESC
+            LIMIT :limit OFFSET :offset"""), {"yo": yo, "limit": limit, "offset": offset})]
+        if not ids:
+            return []
+        por_id = {i.id: i for i in self.db.query(AlbumItem).filter(AlbumItem.id.in_(ids))}
+        return self._con_social([por_id[i] for i in ids if i in por_id], yo)
+
     def _con_social(self, items: list[AlbumItem], yo: int) -> list[AlbumItemDTO]:
         """Suma likes, me_gusta y comentarios (de cuentas activas) a cada item."""
         if not items:
@@ -182,6 +202,16 @@ class AlbumService:
         self._exigir(album_id, yo)
         item = AlbumItem(album_id=album_id, usuario_id=yo, **campos)
         self.db.add(item)
+        # @menciones en la descripción: solo a miembros aceptados del álbum.
+        excluir = set()
+        for nombre in extraer_menciones(item.descripcion):
+            u = UsuarioRepository(self.db).buscar_por_username(nombre)
+            if u is None:
+                continue
+            m = self._miembro(album_id, u.id)
+            if m is None or m.estado != "aceptado":
+                excluir.add(u.id)
+        notificar_menciones(self.db, yo, item.descripcion, "mencion", excluir, album_id=album_id)
         self.db.commit()
         self.db.refresh(item)
         return self._con_social([item], yo)[0]

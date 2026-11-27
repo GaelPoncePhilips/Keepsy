@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Avatar } from '../../components/ui/Avatar'
-import { Button } from '../../components/ui/Button'
+import { Button, ButtonGroup } from '../../components/ui/Button'
 import { InputChip, TextField } from '../../components/ui/Controls'
 import { CenteredLoader } from '../../components/ui/Feedback'
 import { Icon } from '../../components/ui/Icon'
 import { Dialog } from '../../components/ui/Overlay'
 import { cn, useAsync } from '../../lib/hooks'
 import { mensajeDeError } from '../../services/client'
-import { crearConversacion } from '../../services/dms'
+import { crearConversacion, enviarAUsuario } from '../../services/dms'
 import { buscarUsuarios } from '../../services/temporal'
 import { seguidos } from '../../services/usuarios'
 import { useYo } from '../../stores/session'
@@ -22,6 +22,8 @@ export function NuevoMensaje() {
   const [elegidos, setElegidos] = useState<UsuarioResumen[]>([])
   const [nombre, setNombre] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [modo, setModo] = useState<'grupo' | 'separado'>('grupo')
+  const [texto, setTexto] = useState('')
   const sugeridos = useAsync(() => seguidos(yo.id, { limit: 50 }), [yo.id])
   const [resultados, setResultados] = useState<UsuarioResumen[] | null>(null)
   const [buscando, setBuscando] = useState(false)
@@ -70,6 +72,25 @@ export function NuevoMensaje() {
     }
   }
 
+  const separado = elegidos.length > 1 && modo === 'separado'
+
+  const enviarSeparado = async () => {
+    const t = texto.trim()
+    if (!t || elegidos.length < 2 || enviando) return
+    setEnviando(true)
+    const res = await Promise.allSettled(elegidos.map((u) => enviarAUsuario(u.id, { texto: t })))
+    const ok = res.filter((r) => r.status === 'fulfilled').length
+    const fallos = res.length - ok
+    if (ok === 0) {
+      const r0 = res[0]
+      snackbar(r0 && r0.status === 'rejected' ? mensajeDeError(r0.reason) : 'No se pudo enviar')
+      setEnviando(false)
+      return
+    }
+    snackbar(fallos ? `Enviado a ${ok} ${ok === 1 ? 'persona' : 'personas'} · ${fallos} ${fallos === 1 ? 'falló' : 'fallaron'}` : `Enviado a ${ok} personas`)
+    navigate('/direct', { replace: true })
+  }
+
   return (
     <Dialog
       open
@@ -78,9 +99,15 @@ export function NuevoMensaje() {
       fullscreenMobile
       width={480}
       actions={
-        <Button full size="md" disabled={!elegidos.length || enviando} onClick={() => void crear()}>
-          Chat
-        </Button>
+        separado ? (
+          <Button full size="md" disabled={!texto.trim() || enviando} onClick={() => void enviarSeparado()}>
+            Enviar a {elegidos.length}
+          </Button>
+        ) : (
+          <Button full size="md" disabled={!elegidos.length || enviando} onClick={() => void crear()}>
+            Chat
+          </Button>
+        )
       }
     >
       <div className="flex flex-wrap items-center gap-2 border-b border-outline-variant/60 px-4 py-3">
@@ -100,8 +127,20 @@ export function NuevoMensaje() {
         />
       </div>
       {elegidos.length > 1 && (
-        <div className="px-4 pt-3">
-          <TextField label="Nombre del grupo (opcional)" value={nombre} onChange={setNombre} maxLength={60} />
+        <div className="flex flex-col gap-3 px-4 pt-3">
+          <ButtonGroup>
+            <Button size="sm" variant="tonal" className="flex-1" selected={modo === 'grupo'} icon="group" onClick={() => setModo('grupo')}>
+              Crear grupo
+            </Button>
+            <Button size="sm" variant="tonal" className="flex-1" selected={modo === 'separado'} icon="send" onClick={() => setModo('separado')}>
+              Enviar por separado
+            </Button>
+          </ButtonGroup>
+          {separado ? (
+            <TextField label="Mensaje" value={texto} onChange={setTexto} multiline maxLength={1000} />
+          ) : (
+            <TextField label="Nombre del grupo (opcional)" value={nombre} onChange={setNombre} maxLength={60} />
+          )}
         </div>
       )}
       <p className="type-label-l emphasized px-4 pt-3 pb-1">{res ? 'Resultados' : 'Sugeridos'}</p>

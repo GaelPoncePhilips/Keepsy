@@ -1,38 +1,31 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { Avatar, type Anillo } from '../../components/ui/Avatar'
-import { useUi } from '../../stores/ui'
+import { type Anillo } from '../../components/ui/Avatar'
 import { Icon } from '../../components/ui/Icon'
 import { useAsync } from '../../lib/hooks'
-import { formaPara, formaPorNombre } from '../../lib/formasM3'
+import { fondoAnillo, formaStory } from '../../lib/formasM3'
 import * as storiesApi from '../../services/stories'
 import { avatarUrl } from '../../services/temporal/local'
 import { useYo } from '../../stores/session'
+import { useStoriesVistas } from '../../stores/storiesVistas'
 import type { StoriesDeUsuario } from '../../types/api'
 
 const HUECO = 68
 const ANILLO = 76 // hueco + 8px: 2.5px de anillo + 1.5px de separación por lado
 
-function anilloDe(s: StoriesDeUsuario): Anillo {
-  if (s.todas_vistas) return 'visto'
-  if (s.stories.some((x) => !x.vista && x.solo_mejores_amigos)) return 'amigos'
+function anilloDe(s: StoriesDeUsuario, vistasLocal: Set<number>): Anillo {
+  const sinVer = s.stories.filter((x) => !x.vista && !vistasLocal.has(x.id))
+  if (sinVer.length === 0) return 'visto'
+  if (sinVer.some((x) => x.solo_mejores_amigos)) return 'amigos'
   return 'sin-ver'
 }
 
-const FONDO_ANILLO: Partial<Record<Anillo, string>> = {
-  'sin-ver': 'color-mix(in srgb, var(--md-sys-color-on-surface) 85%, transparent)',
-  amigos: 'var(--keepsy-amigos)',
-}
-
-/** Hueco con forma en el vidrio: foto recortada + borde interior; con anillo opcional. */
-function Hueco({ username, forma: formaVariada, anillo }: { username: string; forma: string; anillo: Anillo }) {
+/** Hueco con forma en el vidrio: foto recortada + borde interior; con anillo opcional. Misma forma para todas. */
+function Hueco({ username, anillo }: { username: string; anillo: Anillo }) {
   const [fallo, setFallo] = useState(false)
-  const { ui, anillos } = useUi((s) => s.estilo)
   const url = avatarUrl(username)
-  if (ui === 'clasica') return <Avatar username={username} size={66} anillo={anillo} />
-  const regulares = anillos === 'regulares'
-  const forma = regulares ? formaPorNombre('circle') : formaVariada
-  const fondo = regulares && anillo !== 'ninguno' ? FONDO_ANILLO['sin-ver'] : FONDO_ANILLO[anillo]
+  const forma = formaStory(false)
+  const fondo = fondoAnillo(anillo)
   return (
     <span className="relative isolate flex items-center justify-center">
     {/* La foto sigue "detrás" del vidrio: se ve difusa alrededor del hueco */}
@@ -94,6 +87,12 @@ export function StoriesTray() {
   const seguidos = useAsync(() => storiesApi.storiesDeSeguidos(yo.id), [yo.id])
   const mias = useAsync(() => storiesApi.storiesPublicadas(yo.id), [yo.id])
   const tengo = (mias.data?.length ?? 0) > 0
+  const vistasLocal = useStoriesVistas((s) => s.vistas)
+  const misVistas = (mias.data ?? []).every((s) => vistasLocal.has(s.id))
+  // Primero las que tienen algo sin ver (contando lo que vi recién en el visor).
+  const grupos = (seguidos.data ?? [])
+    .map((g) => ({ g, anillo: anilloDe(g, vistasLocal) }))
+    .sort((a, b) => Number(a.anillo === 'visto') - Number(b.anillo === 'visto'))
 
   return (
     <div className="no-scrollbar flex gap-1.5 overflow-x-auto px-3 py-4" role="list" aria-label="Stories">
@@ -103,7 +102,7 @@ export function StoriesTray() {
           aria-label={tengo ? 'Ver tu story' : 'Crear story'}
           className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          <Hueco username={yo.username} forma={formaPorNombre('circle')} anillo={tengo ? 'visto' : 'ninguno'} />
+          <Hueco username={yo.username} anillo={tengo ? (misVistas ? 'visto' : 'sin-ver') : 'ninguno'} />
         </Link>
         <Link
           to="/crear/story"
@@ -121,8 +120,7 @@ export function StoriesTray() {
               <span className="h-3 w-12 rounded-xs bg-surface-container-highest" />
             </div>
           ))
-        : (seguidos.data ?? []).map((s) => {
-            const anillo = anilloDe(s)
+        : grupos.map(({ g: s, anillo }) => {
             return (
               <Link
                 key={s.usuario.id}
@@ -131,7 +129,7 @@ export function StoriesTray() {
                 className={`${ITEM} transition-transform spring-spatial-fast active:scale-95`}
                 aria-label={`Story de ${s.usuario.username}`}
               >
-                <Hueco username={s.usuario.username} forma={formaPara(s.usuario.username)} anillo={anillo} />
+                <Hueco username={s.usuario.username} anillo={anillo} />
                 <span
                   className={`type-label-s w-full truncate text-center ${anillo === 'visto' ? 'text-on-surface-variant' : 'font-semibold text-on-surface'}`}
                 >

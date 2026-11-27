@@ -41,6 +41,12 @@ export function StoryPickGrid({
                 <Icon name="crown" fill size={14} />
               </span>
             )}
+            {!seleccionable && (s.cantidad_likes ?? 0) > 0 && (
+              <span className="type-label-s emphasized absolute right-1.5 bottom-1.5 flex items-center gap-0.5 rounded-full bg-black/45 px-1.5 py-0.5 text-white">
+                <Icon name="favorite" fill size={12} />
+                {s.cantidad_likes}
+              </span>
+            )}
             {seleccionable && (
               <span
                 className={cn(

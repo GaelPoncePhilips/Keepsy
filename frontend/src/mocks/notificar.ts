@@ -6,6 +6,7 @@ import { nextId, nowIso } from './db'
 export interface Extra {
   post_id?: number | null
   album_id?: number | null
+  story_id?: number | null
   url_miniatura?: string | null
   texto?: string | null
 }
@@ -19,6 +20,7 @@ export function notificar(db: Db, destinatario: number, tipo: TipoNotificacion, 
     actor_id: actor,
     post_id: extra.post_id ?? null,
     album_id: extra.album_id ?? null,
+    story_id: extra.story_id ?? null,
     url_miniatura: extra.url_miniatura ?? null,
     texto: extra.texto ?? null,
     leida: false,

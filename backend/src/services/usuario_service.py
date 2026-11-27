@@ -60,4 +60,6 @@ class UsuarioService:
         if usuario is None:
             raise NotFoundError("Usuario no encontrado")
         campos = dto.model_dump(exclude_unset=True, exclude_none=True)
+        if campos.get("foto_url") == "":
+            campos["foto_url"] = None
         return to_usuario_response(self.repo.actualizar(usuario, campos))

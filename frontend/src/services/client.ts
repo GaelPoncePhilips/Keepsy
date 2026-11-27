@@ -3,6 +3,7 @@
  * VITE_USE_MOCK=true → responde el backend simulado (src/mocks); false → fetch a VITE_API_URL.
  * Las piezas TEMPORAL usan `temporalRequest`, que responde desde el mock aunque VITE_USE_MOCK=false.
  */
+import { despuesDeMutar } from '../lib/revalidar'
 import { env } from '../config/env'
 import type { ApiErrorBody } from '../types/api'
 
@@ -77,12 +78,63 @@ function isErrorBody(x: unknown): x is ApiErrorBody {
   return typeof x === 'object' && x !== null && 'message' in x && typeof (x as ApiErrorBody).message === 'string'
 }
 
+interface ErrorValidacion {
+  type?: string
+  loc?: (string | number)[]
+  msg?: string
+  ctx?: { min_length?: number; max_length?: number; gt?: number; le?: number }
+}
+
+const CAMPOS: Record<string, string> = {
+  username: 'El usuario',
+  email: 'El email',
+  password: 'La contraseña',
+  nueva: 'La contraseña nueva',
+  nombre: 'El nombre',
+  bio: 'La biografía',
+  texto: 'El texto',
+  descripcion: 'La descripción',
+  titulo: 'El título',
+  url_imagen: 'La imagen',
+  url_video: 'El video',
+  portada_url: 'La portada',
+  duracion_seg: 'La duración',
+}
+
+/** Primer error de un 422 de FastAPI/Pydantic, en castellano. null si no se reconoce la forma. */
+function mensajeDeValidacion(detail: unknown): string | null {
+  if (!Array.isArray(detail) || detail.length === 0) return null
+  const e = detail[0] as ErrorValidacion
+  const clave = e.loc?.[e.loc.length - 1]
+  const campo = (typeof clave === 'string' && CAMPOS[clave]) || 'El dato'
+  switch (e.type) {
+    case 'missing':
+      return `${campo} es obligatorio`
+    case 'string_too_short':
+      return e.ctx?.min_length === 1 ? `${campo} no puede estar vacío` : `${campo} necesita al menos ${e.ctx?.min_length} caracteres`
+    case 'string_too_long':
+      return `${campo} admite hasta ${e.ctx?.max_length} caracteres`
+    case 'string_pattern_mismatch':
+      return clave === 'username' ? 'El usuario solo puede tener minúsculas, números, "." y "_"' : `${campo} no tiene un formato válido`
+    case 'greater_than':
+      return `${campo} tiene que ser mayor que ${e.ctx?.gt}`
+    case 'less_than_equal':
+      return `${campo} tiene que ser como máximo ${e.ctx?.le}`
+    case 'value_error':
+      // Validadores propios del backend (en castellano): "Value error, <mensaje>". El email usa el de Pydantic.
+      if (clave === 'email') return 'El email no es válido'
+      return e.msg?.replace(/^Value error, /, '') ?? null
+    default:
+      return null
+  }
+}
+
 function toApiError(status: number, data: unknown): ApiError {
   if (isErrorBody(data)) return new ApiError(status, { error: data.error ?? 'Error', message: data.message })
   // FastAPI devuelve {"detail": ...} en errores de validación (422).
   if (typeof data === 'object' && data !== null && 'detail' in data) {
     const detail = (data as { detail: unknown }).detail
-    const message = typeof detail === 'string' ? detail : 'Datos inválidos'
+    const message = typeof detail === 'string' ? detail : (mensajeDeValidacion(detail) ?? 'Datos inválidos')
     return new ApiError(status, { error: 'ValidationError', message })
   }
   return new ApiError(status, { error: 'HttpError', message: `Error ${status}` })
@@ -174,7 +226,10 @@ async function send<T>(useMock: boolean, method: HttpMethod, path: string, opts:
 }
 
 export function request<T>(method: HttpMethod, path: string, opts: { query?: Query; body?: unknown } = {}): Promise<T> {
-  return send<T>(env.useMock, method, path, opts)
+  return send<T>(env.useMock, method, path, opts).then((r) => {
+    despuesDeMutar(method, path)
+    return r
+  })
 }
 
 /**
@@ -187,7 +242,10 @@ export function temporalRequest<T>(
   path: string,
   opts: { query?: Query; body?: unknown } = {},
 ): Promise<T> {
-  return send<T>(env.useMock || flag, method, path, opts)
+  return send<T>(env.useMock || flag, method, path, opts).then((r) => {
+    despuesDeMutar(method, path)
+    return r
+  })
 }
 
 export const api = {

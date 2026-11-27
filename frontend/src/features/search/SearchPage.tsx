@@ -11,7 +11,7 @@ export function SearchPage() {
   const puntero = useMediaQuery('(pointer: fine)')
   return (
     <div className="mx-auto w-full max-w-[935px] md:px-4">
-      <div className="sticky top-0 z-20 bg-surface px-3 py-2 md:px-0 md:py-4">
+      <div className="sticky top-0 z-20 bg-surface px-3 pt-[calc(8px+env(safe-area-inset-top))] pb-2 md:px-0 md:py-4">
         <SearchBar value={q} onChange={setQ} autoFocus={puntero} />
       </div>
       <SearchResults q={q} />

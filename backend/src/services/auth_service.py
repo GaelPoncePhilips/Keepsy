@@ -3,9 +3,7 @@
 Rotación: cada /auth/refresh revoca el token usado y entrega uno nuevo de la misma "familia".
 Si alguien presenta un token ya revocado (posible robo), se revoca toda la familia.
 """
-from datetime import datetime
-
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.config.env import settings
@@ -44,7 +42,9 @@ class AuthService:
         if rt.revocado_en is not None:
             self.tokens.revocar_familia(rt.familia)  # reuso: alguien más lo tiene
             raise UnauthorizedError("Refresh token revocado")
-        if rt.expira_en <= datetime.now() or self.repo.buscar_activo(rt.usuario_id) is None:
+        # Hora de la base: el proceso puede estar en otra zona horaria que Postgres (NAS -03, contenedor UTC).
+        ahora = self.db.scalar(select(func.localtimestamp()))
+        if rt.expira_en <= ahora or self.repo.buscar_activo(rt.usuario_id) is None:
             raise UnauthorizedError("Refresh token vencido")
         self.tokens.revocar(rt)
         return self._emitir(rt.usuario_id, rt.familia)

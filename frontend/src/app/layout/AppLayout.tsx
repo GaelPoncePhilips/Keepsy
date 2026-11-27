@@ -7,8 +7,10 @@ import { IconButton } from '../../components/ui/IconButton'
 import { NotificationsList } from '../../features/notifications/NotificationsList'
 import { SearchPanelContent } from '../../features/search/SearchPanel'
 import { cn, useEscape } from '../../lib/hooks'
+import { alRevalidar } from '../../lib/revalidar'
 import { useBadges } from '../../stores/badges'
 import { useUi } from '../../stores/ui'
+import { InstalarIos } from '../../components/InstalarIos'
 import { CreateMenu } from './CreateMenu'
 import { BottomNav, SideNav } from './Nav'
 import { MobileTopBar } from './TopBar'
@@ -59,7 +61,11 @@ export function AppLayout() {
   useEffect(() => {
     void refrescar()
     const t = window.setInterval(() => void refrescar(), 20_000)
-    return () => window.clearInterval(t)
+    const quitar = alRevalidar(() => void refrescar())
+    return () => {
+      window.clearInterval(t)
+      quitar()
+    }
   }, [refrescar])
 
   // Navegar cierra el panel y refresca contadores.
@@ -98,6 +104,7 @@ export function AppLayout() {
       {!sinBarraInferior && <BottomNav />}
       <CreateMenu />
       <Snackbars />
+      <InstalarIos />
     </div>
   )
 }

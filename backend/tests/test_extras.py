@@ -74,6 +74,7 @@ def test_albums(usuarios):
     assert album["miembros"][0]["rol"] == "admin"
     assert beto.get(f"/albums/{aid}").status_code == 404
     assert beto.post(f"/albums/{aid}/invitaciones", {"usuario_id": caro.id}).status_code == 404
+    beto.seguir(ana)
     ana.post(f"/albums/{aid}/invitaciones", {"usuario_id": beto.id})
     assert ana.post(f"/albums/{aid}/invitaciones", {"usuario_id": beto.id}).status_code == 409
     assert beto.post(f"/albums/{aid}/items", {"url_imagen": "x"}).status_code == 403  # pendiente
@@ -176,6 +177,7 @@ def test_reposts(usuarios):
 def test_album_item_video(usuarios):
     ana, beto, *_ = usuarios
     album = ana.post("/albums", {"titulo": "Viaje"}).json()
+    beto.seguir(ana)
     ana.post(f"/albums/{album['id']}/invitaciones", {"usuario_id": beto.id})
     beto.post(f"/albums/{album['id']}/invitaciones/aceptar")
     url = f"/albums/{album['id']}/items"
@@ -190,6 +192,7 @@ def test_album_item_video(usuarios):
 def test_rechazar_invitacion_album_borra_notificacion(usuarios):
     ana, beto, *_ = usuarios
     album = ana.post("/albums", {"titulo": "X"}).json()
+    beto.seguir(ana)
     ana.post(f"/albums/{album['id']}/invitaciones", {"usuario_id": beto.id})
     assert [n["tipo"] for n in beto.get("/notificaciones").json()] == ["invitacion_album"]
     beto.delete(f"/albums/{album['id']}/miembros/{beto.id}")
@@ -223,6 +226,7 @@ def test_media_webp_content_type(usuarios, client):
 def test_album_items_likes_y_comentarios(usuarios):
     ana, beto, caro, dani = usuarios
     album = ana.post("/albums", {"titulo": "Viaje"}).json()
+    beto.seguir(ana)
     ana.post(f"/albums/{album['id']}/invitaciones", {"usuario_id": beto.id})
     beto.post(f"/albums/{album['id']}/invitaciones/aceptar")
     item = beto.post(f"/albums/{album['id']}/items", {"url_imagen": "f.jpg"}).json()
@@ -240,3 +244,69 @@ def test_album_items_likes_y_comentarios(usuarios):
     assert beto.delete(f"{base}/comentarios/{c['id']}").status_code == 204  # autor del item
     assert ana.delete(f"{base}/like").json() == {"cantidad_likes": 0, "me_gusta": False}
     assert ana.get(f"/albums/{album['id']}/items/999999/comentarios").status_code == 404
+
+
+def test_dm_responder_y_reenviar_story(usuarios):
+    ana, beto, caro, dani = usuarios
+    beto.seguir(ana); caro.seguir(beto)
+    st = ana.post("/stories", {"url_imagen": "st.jpg"}).json()["id"]
+    c = beto.post("/conversaciones", {"participantes": [ana.id]}).json()
+    # respuesta: story_id + texto
+    r = beto.post(f"/conversaciones/{c['id']}/mensajes", {"story_id": st, "texto": "¡qué lindo!"})
+    assert r.status_code == 201
+    m = r.json()
+    assert m["story_id"] == st and m["story_url_imagen"] == "st.jpg" and m["story_usuario_id"] == ana.id
+    ult = ana.get("/conversaciones/solicitudes").json()[0]["ultimo_mensaje"]
+    assert ult["story_id"] == st and ult["story_url_imagen"] == "st.jpg"
+    # reenvío: story_id sin texto
+    c2 = beto.post("/conversaciones", {"participantes": [caro.id]}).json()
+    f = beto.post(f"/conversaciones/{c2['id']}/mensajes", {"story_id": st}).json()
+    assert f["texto"] is None and f["story_usuario_id"] == ana.id
+    assert caro.get(f"/conversaciones/{c2['id']}/mensajes").json()[0]["story_id"] == st
+    # story inexistente o privada no se puede enviar
+    assert beto.post(f"/conversaciones/{c['id']}/mensajes", {"story_id": 999999}).status_code == 404
+    dani.patch(f"/usuarios/{dani.id}", {"es_privada": True})
+    privada = dani.post("/stories", {"url_imagen": "p.jpg"}).json()["id"]
+    assert beto.post(f"/conversaciones/{c['id']}/mensajes", {"story_id": privada}).status_code in (403, 404)
+    # sin nada → 422
+    assert beto.post(f"/conversaciones/{c['id']}/mensajes", {}).status_code == 422
+    # borrar la story deja el mensaje con story_id null
+    assert ana.delete(f"/stories/{st}").status_code == 204
+    m2 = caro.get(f"/conversaciones/{c2['id']}/mensajes").json()[0]
+    assert m2["story_id"] is None and m2["story_url_imagen"] is None
+
+
+def test_menciones_en_post(usuarios):
+    ana, beto, caro, dani = usuarios
+    tipos = lambda u: [(n["tipo"], n["actor"]["username"], n["post_id"]) for n in u.get("/notificaciones").json()]  # noqa: E731
+    caro.patch(f"/usuarios/{caro.id}", {"es_privada": True})
+    ana.post(f"/usuarios/{dani.id}/bloqueo")
+    pid = ana.publicar("hola @beto, @caro y @dani y @ana y @nadie. @beto")
+    assert tipos(beto)[0] == ("mencion", "ana", pid)
+    assert sum(1 for t in tipos(beto) if t[0] == "mencion") == 1  # sin repetir
+    assert ("mencion", "ana", pid) in tipos(caro)  # cuenta pública: caro puede verla
+    assert not any(t[0] == "mencion" for t in tipos(dani))  # bloqueado
+    assert not any(t[0] == "mencion" for t in tipos(ana))  # no a sí misma
+    # privada: quien no la sigue no recibe la mención
+    ana.patch(f"/usuarios/{ana.id}", {"es_privada": True})
+    otro = ana.publicar("@caro otra vez")
+    assert ("mencion", "ana", otro) not in tipos(caro)
+    # editar: solo las menciones nuevas
+    ana.patch(f"/usuarios/{ana.id}", {"es_privada": False})
+    assert ana.patch(f"/posts/{pid}", {"descripcion": "hola @beto y @caro"}).status_code == 200
+    assert sum(1 for t in tipos(beto) if t == ("mencion", "ana", pid)) == 1
+
+
+def test_menciones_en_comentario(usuarios):
+    ana, beto, caro, dani = usuarios
+    beto.seguir(ana)
+    pid = ana.publicar("foto")
+    beto.post(f"/posts/{pid}/comentarios", {"texto": "mirá @caro y @ana"}).json()
+    caro_n = caro.get("/notificaciones").json()
+    assert [(n["tipo"], n["actor"]["username"], n["post_id"]) for n in caro_n] == [("mencion_comentario", "beto", pid)]
+    # la dueña recibe solo 'comentario', no además la mención
+    assert [n["tipo"] for n in ana.get("/notificaciones").json() if n["tipo"] != "seguidor_nuevo"] == ["comentario"]
+    # quien no puede ver el post no recibe la mención
+    ana.patch(f"/usuarios/{ana.id}", {"es_privada": True})
+    beto.post(f"/posts/{pid}/comentarios", {"texto": "@dani"})
+    assert dani.get("/notificaciones").json() == []

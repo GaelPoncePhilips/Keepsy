@@ -1,3 +1,4 @@
+import { useDescripcion } from '../../lib/eventos'
 import { useState } from 'react'
 import { navegarConZoom } from '../../lib/transicion'
 import { Link, useNavigate, useParams } from 'react-router'
@@ -48,9 +49,10 @@ function ListaComentarios({
   onResponder?: (c: Comentario) => void
 }) {
   const yo = useYo()
+  const descripcion = useDescripcion(post.id, post.descripcion)
   return (
     <div className="py-2">
-      {post.descripcion && (
+      {descripcion && (
         <div className="flex items-start gap-3 px-4 py-2">
           <Link to={`/${post.autor_username}`} className="shrink-0">
             <Avatar username={post.autor_username} size={32} />
@@ -60,7 +62,7 @@ function ListaComentarios({
               <Link to={`/${post.autor_username}`} className="emphasized mr-1.5 font-semibold">
                 {post.autor_username}
               </Link>
-              <RichText text={post.descripcion} />
+              <RichText text={descripcion} />
             </p>
             <p className="type-label-s mt-0.5 text-on-surface-variant">{tiempoCorto(post.fecha_publicacion)}</p>
           </div>
@@ -68,7 +70,7 @@ function ListaComentarios({
       )}
       {items === undefined ? (
         <CenteredLoader />
-      ) : items.length === 0 && !post.descripcion ? (
+      ) : items.length === 0 && !descripcion ? (
         <EmptyState icon="chat_bubble" title="Todavía no hay comentarios" text="Iniciá la conversación." />
       ) : (
         <HilosComentarios

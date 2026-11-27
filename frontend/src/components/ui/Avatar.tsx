@@ -1,56 +1,38 @@
-import { useState, type CSSProperties } from 'react'
-import { radioBlob } from '../../lib/blob'
+import { useState, useSyncExternalStore, type CSSProperties } from 'react'
+import { fondoAnillo, formaStory } from '../../lib/formasM3'
 import { cn } from '../../lib/hooks'
-import { avatarUrl } from '../../services/temporal/local'
-import { useUi } from '../../stores/ui'
+import { avatarUrl, suscribirAvatares } from '../../services/temporal/local'
 
-/** Silueta "cookie" (8 lóbulos suaves) para avatares con historia. */
-const COOKIE = 'polygon(100.00% 50.00%, 99.05% 54.29%, 96.60% 58.22%, 93.59% 61.68%, 91.06% 64.94%, 89.60% 68.47%, 89.08% 72.56%, 88.76% 77.14%, 87.72% 81.65%, 85.36% 85.36%, 81.65% 87.72%, 77.14% 88.76%, 72.56% 89.08%, 68.47% 89.60%, 64.94% 91.06%, 61.68% 93.59%, 58.22% 96.60%, 54.29% 99.05%, 50.00% 100.00%, 45.71% 99.05%, 41.78% 96.60%, 38.32% 93.59%, 35.06% 91.06%, 31.53% 89.60%, 27.44% 89.08%, 22.86% 88.76%, 18.35% 87.72%, 14.64% 85.36%, 12.28% 81.65%, 11.24% 77.14%, 10.92% 72.56%, 10.40% 68.47%, 8.94% 64.94%, 6.41% 61.68%, 3.40% 58.22%, 0.95% 54.29%, 0.00% 50.00%, 0.95% 45.71%, 3.40% 41.78%, 6.41% 38.32%, 8.94% 35.06%, 10.40% 31.53%, 10.92% 27.44%, 11.24% 22.86%, 12.28% 18.35%, 14.64% 14.64%, 18.35% 12.28%, 22.86% 11.24%, 27.44% 10.92%, 31.53% 10.40%, 35.06% 8.94%, 38.32% 6.41%, 41.78% 3.40%, 45.71% 0.95%, 50.00% 0.00%, 54.29% 0.95%, 58.22% 3.40%, 61.68% 6.41%, 64.94% 8.94%, 68.47% 10.40%, 72.56% 10.92%, 77.14% 11.24%, 81.65% 12.28%, 85.36% 14.64%, 87.72% 18.35%, 88.76% 22.86%, 89.08% 27.44%, 89.60% 31.53%, 91.06% 35.06%, 93.59% 38.32%, 96.60% 41.78%, 99.05% 45.71%)'
+/** URLs que respondieron 404 (usuario sin foto): no se vuelven a pedir en esta sesión. */
+const sinFoto = new Set<string>()
 
 export type Anillo = 'ninguno' | 'sin-ver' | 'visto' | 'amigos'
 
 interface AvatarProps {
   username: string
   size?: number
-  /** Anillo de story: sin-ver = marca (índigo → lima), visto = gris, amigos = verde. */
+  /** Anillo de story: sin-ver = rosa → coral, visto = rosas pálidos, amigos = rojo de marca. */
   anillo?: Anillo
   className?: string
   alt?: string
 }
 
-/** Avatar circular. TEMPORAL (hueco 6): la foto se deriva del username; si falla, iniciales. */
+/** Avatar con forma de estrella de 8 puntas (igual en toda la app). Sin foto propia: inicial sobre la estrella. */
 export function Avatar({ username, size = 32, anillo = 'ninguno', className, alt }: AvatarProps) {
-  const [fallo, setFallo] = useState(false)
+  useSyncExternalStore(suscribirAvatares, () => avatarUrl(username))
   const url = avatarUrl(username)
+  const [fallo, setFallo] = useState<string | null>(() => (url && sinFoto.has(url) ? url : null))
   const ring = anillo !== 'ninguno'
-  // Con historia el avatar pasa a squircle: más editorial/tech que el círculo clásico.
-  // Sin historia: mancha propia de cada usuario (siempre la misma).
-  const estilo = useUi((s) => s.estilo)
   const forma = ''
-  // Clásica: círculo. Blob: cookie con historia; sin historia, mancha propia o squircle sólido (G2 donde hay corner-shape).
-  const clip =
-    estilo.ui === 'clasica'
-      ? { borderRadius: '50%' }
-      : ring
-        ? { clipPath: COOKIE }
-        : estilo.bordes === 'solidos'
-          ? ({ borderRadius: '32%', cornerShape: 'squircle' } as CSSProperties)
-          : { borderRadius: radioBlob(username, 0.5) }
+  const clip: CSSProperties = { clipPath: formaStory(false) }
   const grosor = size >= 56 ? 3 : 2
-  const fondo =
-    anillo === 'sin-ver'
-      ? 'conic-gradient(from 210deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary-container), var(--md-sys-color-primary))'
-      : anillo === 'amigos'
-        ? 'var(--keepsy-amigos)'
-        : anillo === 'visto'
-          ? 'var(--md-sys-color-outline-variant)'
-          : undefined
+  const fondo = fondoAnillo(anillo)
   const inner = (
     <span
       className={cn('block overflow-hidden bg-surface-container-highest', forma)}
       style={{ width: size, height: size, ...clip }}
     >
-      {url && !fallo ? (
+      {url && fallo !== url && !sinFoto.has(url) ? (
         <img
           src={url}
           alt={alt ?? `Foto de perfil de ${username}`}
@@ -58,7 +40,10 @@ export function Avatar({ username, size = 32, anillo = 'ninguno', className, alt
           height={size}
           loading="lazy"
           className="size-full object-cover"
-          onError={() => setFallo(true)}
+          onError={() => {
+            sinFoto.add(url)
+            setFallo(url)
+          }}
         />
       ) : (
         <span
@@ -82,7 +67,7 @@ export function Avatar({ username, size = 32, anillo = 'ninguno', className, alt
         {inner}
       </span>
       {anillo === 'amigos' && size >= 40 && (
-        // Mejores amigos: corona sobre el anillo verde.
+        // Mejores amigos: corona sobre el anillo rojo.
         <span
           className="absolute -top-1 left-1/2 flex -translate-x-1/2 items-center justify-center rounded-full bg-amigos text-white ring-2 ring-surface"
           style={{ width: Math.round(size * 0.32), height: Math.round(size * 0.32) }}

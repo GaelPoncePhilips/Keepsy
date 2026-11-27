@@ -2,11 +2,14 @@ import { useState } from 'react'
 import { navegarConZoom } from '../../lib/transicion'
 import { useNavigate } from 'react-router'
 import { ScreenHeader } from '../../components/shared'
-import { TextField } from '../../components/ui/Controls'
+import { Icon } from '../../components/ui/Icon'
+import { MentionField } from '../../components/ui/MentionField'
 import { useIsMobile } from '../../lib/hooks'
 import { mensajeDeError } from '../../services/client'
 import { crearPost } from '../../services/posts'
 import { snackbar } from '../../stores/ui'
+import { EtiquetarSheet } from './EtiquetarSheet'
+import { FotosPicker } from './FotosPicker'
 import { MediaPicker, type MediaElegida } from './MediaPicker'
 
 /** Formulario común de "Nueva publicación" y "Nuevo reel". */
@@ -24,22 +27,24 @@ export function CreateForm({
   const navigate = useNavigate()
   const mobile = useIsMobile()
   const [media, setMedia] = useState<MediaElegida | null>(null)
+  const [fotos, setFotos] = useState<string[]>([])
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [etiquetar, setEtiquetar] = useState(false)
 
   const compartir = async () => {
-    if (!media || enviando) return
+    if ((tipo === 'foto' ? fotos.length === 0 : !media) || enviando) return
     setEnviando(true)
     try {
       const descripcion = texto.trim() || null
       await crearPost(
         tipo === 'foto'
-          ? { tipo: 'foto', url_imagen: media.url_imagen, descripcion }
+          ? { tipo: 'foto', url_imagen: fotos[0], imagenes_extra: fotos.slice(1), descripcion }
           : {
               tipo: 'reel',
-              url_imagen: media.url_imagen,
-              url_video: media.url_video,
-              duracion_seg: media.duracion_seg,
+              url_imagen: media?.url_imagen ?? '',
+              url_video: media?.url_video ?? null,
+              duracion_seg: media?.duracion_seg ?? null,
               descripcion,
             },
       )
@@ -51,7 +56,7 @@ export function CreateForm({
     }
   }
 
-  const puede = !!media && !enviando
+  const puede = (tipo === 'foto' ? fotos.length > 0 : !!media) && !enviando
   return (
     <div>
       <ScreenHeader
@@ -70,10 +75,35 @@ export function CreateForm({
       />
       <div className="mx-auto grid max-w-[900px] gap-4 p-4 lg:grid-cols-2 lg:gap-8 lg:py-8">
         <div className={tipo === 'reel' ? 'mx-auto w-full max-w-[360px] lg:max-w-none' : undefined}>
-          <MediaPicker accept={tipo === 'foto' ? 'foto' : 'video'} aspect={tipo === 'foto' ? '1 / 1' : '9 / 16'} value={media} onChange={setMedia} />
+          {tipo === 'foto' ? (
+            <FotosPicker value={fotos} onChange={setFotos} />
+          ) : (
+            <MediaPicker accept="video" aspect="9 / 16" value={media} onChange={setMedia} />
+          )}
         </div>
         <div>
-          <TextField label="Escribí una descripción…" value={texto} onChange={setTexto} multiline maxLength={2200} hint="Los #hashtags se detectan solos" />
+          <MentionField
+            label="Escribí una descripción…"
+            value={texto}
+            onChange={setTexto}
+            multiline
+            maxLength={2200}
+            hint="Los #hashtags y las @menciones se detectan solos"
+          />
+          <button
+            type="button"
+            onClick={() => setEtiquetar(true)}
+            className="state mt-3 flex h-12 w-full items-center gap-3 rounded-md px-3 type-body-l text-on-surface"
+          >
+            <Icon name="person_add" />
+            <span className="flex-1 text-left">Etiquetar personas</span>
+            <Icon name="chevron_right" className="text-on-surface-variant" />
+          </button>
+          <EtiquetarSheet
+            open={etiquetar}
+            onClose={() => setEtiquetar(false)}
+            onElegir={(u) => setTexto((t) => (t.includes(`@${u.username}`) ? t : `${t}${t && !/\s$/.test(t) ? ' ' : ''}@${u.username} `))}
+          />
         </div>
       </div>
     </div>

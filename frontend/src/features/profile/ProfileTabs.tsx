@@ -4,14 +4,15 @@ import { useLocation, useNavigate } from 'react-router'
 import { GridSkeleton, PostGrid } from '../../components/shared'
 import { Button } from '../../components/ui/Button'
 import { EmptyState, ErrorState } from '../../components/ui/Feedback'
-import { Dialog } from '../../components/ui/Overlay'
+import { useEventoRepost } from '../../lib/eventos'
 import { useAsync, useInfinite, useIsDesktop } from '../../lib/hooks'
 import * as postsApi from '../../services/posts'
 import * as storiesApi from '../../services/stories'
 import { repostsDeUsuario } from '../../services/temporal'
 import type { Story } from '../../types/api'
 import { HighlightEditor } from '../highlights/HighlightEditor'
-import { fechaStory, StoryPickGrid } from '../highlights/StoryPickGrid'
+import { StoryPickGrid } from '../highlights/StoryPickGrid'
+import { StoryArchivada } from '../stories/StoryArchivada'
 
 function useLinkState() {
   const location = useLocation()
@@ -77,11 +78,17 @@ export function ReelsTab({ usuarioId, esPropio }: { usuarioId: number; esPropio:
 /** TEMPORAL (hueco 13): publicaciones y reels que el usuario republicó. */
 export function RepostsTab({ usuarioId, esPropio }: { usuarioId: number; esPropio: boolean }) {
   const linkState = useLinkState()
-  const { items, error, loading, done, reload, sentinelRef } = useInfinite(
+  const { items, error, loading, done, reload, sentinelRef, setItems } = useInfinite(
     (offset, limit) => repostsDeUsuario(usuarioId, { offset, limit }),
     [usuarioId],
     12,
   )
+  // Republicar o quitar desde el modal / el feed actualiza la pestaña sin recargar.
+  useEventoRepost((d) => {
+    if (!esPropio) return
+    if (d.republicado) reload()
+    else setItems((prev) => prev.filter((p) => p.id !== d.postId))
+  })
   if (error && items.length === 0) return <ErrorState error={error} onRetry={reload} />
   if (loading && items.length === 0) return <GridSkeleton />
   if (done && items.length === 0) {
@@ -109,7 +116,7 @@ export function ArchivoTab({ usuarioId, onDestacada }: { usuarioId: number; onDe
   return (
     <div>
       <div className="flex items-center justify-between gap-2 px-4 py-3">
-        <p className="type-body-m text-on-surface-variant">Solo vos ves tu archivo de stories.</p>
+        <p className="type-body-m text-on-surface-variant">Solo vos ves tu archivo. Tocá una story para ver quién la vio, sus me gusta o destacarla.</p>
         {stories.length > 0 &&
           (seleccionando ? (
             <span className="flex gap-2">
@@ -146,11 +153,7 @@ export function ArchivoTab({ usuarioId, onDestacada }: { usuarioId: number; onDe
           }}
         />
       )}
-      <Dialog open={!!viendo} onClose={() => setViendo(null)} title={viendo ? fechaStory(viendo.fecha_publicacion) : ''} width={420}>
-        {viendo && (
-          <img src={viendo.url_imagen} alt={`Story del ${fechaStory(viendo.fecha_publicacion)}`} className="w-full object-cover" style={{ aspectRatio: '9 / 16' }} />
-        )}
-      </Dialog>
+      <StoryArchivada story={viendo} onClose={() => setViendo(null)} onBorrada={() => reload()} />
       <HighlightEditor
         open={creando}
         seleccionInicial={sel}

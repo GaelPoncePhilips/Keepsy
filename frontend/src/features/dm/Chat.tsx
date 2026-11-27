@@ -279,7 +279,7 @@ function ChatView({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-outline-variant/60 px-2">
+      <header className="flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-outline-variant/60 px-2 pt-[env(safe-area-inset-top)] md:h-16 md:pt-0">
         {isMobile && <IconButton icon="arrow_back" label="Volver" onClick={() => navigate('/direct')} />}
         {conv.es_grupal && otrosPart.length > 1 ? (
           <span className="relative ml-2 block size-10 shrink-0" aria-hidden="true">

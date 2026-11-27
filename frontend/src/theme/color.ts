@@ -3,20 +3,42 @@
  * Se expone como variables CSS --md-sys-color-<rol> que consume Tailwind (ver index.css).
  */
 import {
+  DynamicScheme,
   Hct,
   MaterialDynamicColors,
   SchemeTonalSpot,
+  TonalPalette,
   argbFromHex,
   hexFromArgb,
 } from '@material/material-color-utilities'
 
-/** Rojo de marca. Tonal Spot da superficies cálidas y tranquilas (Expressive viraba a marrón + cian). */
+/** Rojo de marca (logo y stories de mejores amigos). Tonal Spot da superficies cálidas y tranquilas. */
 export const SEED = '#D12C23'
+/**
+ * Acento terciario: el coral de las stories (#E3746E). Tonal Spot lo ponía en amarillo/oliva (+60° de tono),
+ * que chocaba con los rosas de los anillos; así toda la UI queda en la familia rojo → coral → rosa.
+ */
+const TERCIARIO = '#E3746E'
 
 export type Tema = 'claro' | 'oscuro' | 'sistema'
 
 function schemeCss(dark: boolean): string {
-  const scheme = new SchemeTonalSpot(Hct.fromInt(argbFromHex(SEED)), dark, 0, '2025')
+  const base = new SchemeTonalSpot(Hct.fromInt(argbFromHex(SEED)), dark, 0, '2025')
+  const coral = Hct.fromInt(argbFromHex(TERCIARIO))
+  const scheme = new DynamicScheme({
+    sourceColorHct: base.sourceColorHct,
+    variant: base.variant,
+    contrastLevel: 0,
+    isDark: dark,
+    specVersion: '2025',
+    primaryPalette: base.primaryPalette,
+    secondaryPalette: base.secondaryPalette,
+    // Corrido unos grados hacia el rosa para que no sea un segundo primario.
+    tertiaryPalette: TonalPalette.fromHueAndChroma((coral.hue + 8) % 360, 36),
+    neutralPalette: base.neutralPalette,
+    neutralVariantPalette: base.neutralVariantPalette,
+    errorPalette: base.errorPalette,
+  })
   const mdc = new MaterialDynamicColors()
   const lines: string[] = []
   for (const color of mdc.allColors) {

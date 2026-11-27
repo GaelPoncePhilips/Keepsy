@@ -8,11 +8,13 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.db.models.conversacion_model import Conversacion, ConversacionParticipante, Mensaje
+from src.db.models.story_model import Story
 from src.dtos.extra_dto import ConversacionDTO, MensajeDTO
 from src.dtos.usuario_dto import UsuarioResumenDTO
 from src.repositories.seguidor_repository import SeguidorRepository
 from src.repositories.usuario_repository import UsuarioRepository
 from src.services.post_service import PostService
+from src.services.story_service import StoryService
 from src.utils.errors import BadRequestError, ForbiddenError, NotFoundError
 
 
@@ -34,6 +36,20 @@ class DMService:
             ConversacionParticipante.conversacion_id == conv_id,
             ConversacionParticipante.usuario_id != yo)]
 
+    def _mensajes_dto(self, mensajes: list[Mensaje]) -> list[MensajeDTO]:
+        """MensajeDTO con miniatura y autor de la story (una sola consulta para todas)."""
+        ids = {m.story_id for m in mensajes if m.story_id is not None}
+        stories = {s.id: s for s in self.db.query(Story).filter(Story.id.in_(ids)).all()} if ids else {}
+        res = []
+        for m in mensajes:
+            dto = MensajeDTO.model_validate(m)
+            st = stories.get(m.story_id) if m.story_id is not None else None
+            if st is not None:
+                dto.story_url_imagen = st.url_imagen
+                dto.story_usuario_id = st.usuario_id
+            res.append(dto)
+        return res
+
     def _dto(self, conv_id: int, yo: int) -> ConversacionDTO:
         c = self.db.get(Conversacion, conv_id)
         yo_p = self._participante(conv_id, yo)
@@ -47,7 +63,7 @@ class DMService:
             {"c": conv_id, "yo": yo, "ul": yo_p.ultima_lectura}).scalar()
         return ConversacionDTO(id=c.id, es_grupal=c.es_grupal, nombre=c.nombre, estado=yo_p.estado,
                                participantes=[UsuarioResumenDTO(**p) for p in participantes],
-                               ultimo_mensaje=MensajeDTO.model_validate(ultimo) if ultimo else None,
+                               ultimo_mensaje=self._mensajes_dto([ultimo])[0] if ultimo else None,
                                no_leidos=no_leidos)
 
     def _listar(self, yo: int, estado: str) -> list[ConversacionDTO]:
@@ -97,23 +113,31 @@ class DMService:
         q = self.db.query(Mensaje).filter(Mensaje.conversacion_id == conv_id)
         if antes_de:
             q = q.filter(Mensaje.id < antes_de)
-        return [MensajeDTO.model_validate(m) for m in q.order_by(Mensaje.id.desc()).limit(limit).all()]
+        return self._mensajes_dto(q.order_by(Mensaje.id.desc()).limit(limit).all())
 
-    def enviar(self, conv_id: int, yo: int, texto: str | None, post_id: int | None) -> MensajeDTO:
+    def enviar(self, conv_id: int, yo: int, texto: str | None, post_id: int | None,
+               story_id: int | None = None) -> MensajeDTO:
+        """story_id + texto = respuesta a una story; story_id sin texto = story reenviada."""
+        if texto is not None:
+            texto = texto.strip() or None
+        if texto is None and post_id is None and story_id is None:
+            raise BadRequestError("El mensaje necesita texto, post_id o story_id")
         p = self._participante(conv_id, yo)
         otros = self._otros(conv_id, yo)
         if any(self.usuarios.hay_bloqueo(o, yo) for o in otros) or not any(self.usuarios.buscar_activo(o) for o in otros):
             raise ForbiddenError("No podés escribir en esta conversación")
         if post_id is not None:
             PostService(self.db).obtener(post_id, yo)  # 404/403 si no puede ver el post
+        if story_id is not None:
+            StoryService(self.db)._story_visible(story_id, yo)  # 404/403 si no puede ver la story
         p.estado = "aceptada"  # responder acepta la solicitud
-        m = Mensaje(conversacion_id=conv_id, emisor_id=yo, texto=texto, post_id=post_id)
+        m = Mensaje(conversacion_id=conv_id, emisor_id=yo, texto=texto, post_id=post_id, story_id=story_id)
         self.db.add(m)
         self.db.flush()
         p.ultima_lectura = m.fecha  # lo que escribo ya lo leí
         self.db.commit()
         self.db.refresh(m)
-        return MensajeDTO.model_validate(m)
+        return self._mensajes_dto([m])[0]
 
     def aceptar(self, conv_id: int, yo: int) -> ConversacionDTO:
         self._participante(conv_id, yo).estado = "aceptada"

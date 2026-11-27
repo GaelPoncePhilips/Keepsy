@@ -14,10 +14,20 @@ class Story(Base):
     fecha_publicacion = Column(DateTime, nullable=False, server_default=func.now())
     # La base la calcula: fecha_publicacion + 24 h
     fecha_vencimiento = Column(DateTime, nullable=False, server_default=FetchedValue())
+    texto = Column(String(200))  # EXTRA: texto sobre la story (puede llevar @menciones)
 
 
 class VistaStory(Base):
     __tablename__ = "vistas_story"
+
+    usuario_id = Column(Integer, ForeignKey("usuario.id", ondelete="CASCADE"), primary_key=True)
+    story_id = Column(Integer, ForeignKey("story.id", ondelete="CASCADE"), primary_key=True)
+    fecha = Column(DateTime, nullable=False, server_default=func.now())
+
+
+# EXTRA: likes de stories
+class StoryLike(Base):
+    __tablename__ = "story_like"
 
     usuario_id = Column(Integer, ForeignKey("usuario.id", ondelete="CASCADE"), primary_key=True)
     story_id = Column(Integer, ForeignKey("story.id", ondelete="CASCADE"), primary_key=True)

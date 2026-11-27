@@ -12,6 +12,28 @@ from src.config.env import settings
 from src.utils.errors import BadRequestError
 
 MB = 1024 * 1024
+MARCAS_HEIF = {b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"mif1", b"msf1", b"avif"}
+
+
+def heic_a_jpeg(origen: Path) -> Path:
+    """Convierte HEIC/HEIF/AVIF a JPEG (los navegadores, salvo Safari, no muestran HEIC). Respeta la orientación EXIF."""
+    try:
+        from PIL import Image, ImageOps
+        from pillow_heif import register_heif_opener
+    except ImportError as e:  # dependencia opcional en desarrollo
+        origen.unlink(missing_ok=True)
+        raise BadRequestError("Este servidor todavía no puede convertir fotos HEIC") from e
+    register_heif_opener()
+    destino = origen.with_suffix(".jpg")
+    try:
+        with Image.open(origen) as img:
+            ImageOps.exif_transpose(img).convert("RGB").save(destino, "JPEG", quality=88, optimize=True)
+    except Exception as e:
+        destino.unlink(missing_ok=True)
+        raise BadRequestError("No se pudo leer la foto HEIC") from e
+    finally:
+        origen.unlink(missing_ok=True)
+    return destino
 LIMITES = {"imagen": 10 * MB, "video": 100 * MB}
 
 
@@ -26,6 +48,9 @@ def detectar_tipo(cabecera: bytes) -> tuple[str, str] | None:
     if cabecera[:6] in (b"GIF87a", b"GIF89a"):
         return "imagen", "gif"
     if cabecera[4:8] == b"ftyp":
+        # HEIC/HEIF (fotos de iPhone) comparten el contenedor ISO-BMFF con MP4: se distinguen por la marca.
+        if cabecera[8:12] in MARCAS_HEIF:
+            return "imagen", "heic"
         return "video", "mov" if cabecera[8:10] == b"qt" else "mp4"
     if cabecera.startswith(b"\x1a\x45\xdf\xa3"):
         return "video", "webm"
@@ -40,7 +65,7 @@ class MediaService:
         cabecera = await archivo.read(16)
         tipo = detectar_tipo(cabecera)
         if tipo is None:
-            raise BadRequestError("Formato no soportado: imágenes JPG/PNG/WEBP/GIF o videos MP4/MOV/WEBM")
+            raise BadRequestError("Formato no soportado: imágenes JPG/PNG/WEBP/GIF/HEIC o videos MP4/MOV/WEBM")
         categoria, ext = tipo
         nombre = f"{usuario_id}/{uuid.uuid4().hex}.{ext}"
         destino = self.carpeta / nombre
@@ -57,4 +82,8 @@ class MediaService:
         except BadRequestError:
             destino.unlink(missing_ok=True)
             raise
+        if ext == "heic":
+            destino = heic_a_jpeg(destino)
+            nombre = nombre.rsplit(".", 1)[0] + ".jpg"
+            tamano = destino.stat().st_size
         return {"url": f"{settings.MEDIA_URL.rstrip('/')}/{nombre}", "tipo": categoria, "tamano_bytes": tamano}

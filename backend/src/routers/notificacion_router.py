@@ -17,12 +17,15 @@ router = APIRouter(prefix="/notificaciones", tags=["notificaciones"])
 
 class NotificacionDTO(BaseModel):
     id: int
-    tipo: str  # seguidor_nuevo | solicitud | solicitud_aceptada | like | comentario | invitacion_album
+    # seguidor_nuevo | solicitud | solicitud_aceptada | like | comentario | invitacion_album
+    # | mencion (post_id o album_id) | mencion_comentario (post_id + comentario_id) | like_story | mencion_story (story_id)
+    tipo: str
     actor: UsuarioResumenDTO
     post_id: int | None
     comentario_id: int | None
     album_id: int | None
-    url_miniatura: str | None = None  # imagen del post o portada del álbum
+    story_id: int | None = None
+    url_miniatura: str | None = None  # imagen del post, de la story o portada del álbum
     texto: str | None = None          # texto del comentario o título del álbum
     leida: bool
     fecha: datetime

@@ -56,6 +56,9 @@ class MensajeDTO(BaseModel):
     emisor_id: int
     texto: str | None
     post_id: int | None
+    story_id: int | None = None
+    story_url_imagen: str | None = None
+    story_usuario_id: int | None = None
     fecha: datetime
 
     model_config = {"from_attributes": True}

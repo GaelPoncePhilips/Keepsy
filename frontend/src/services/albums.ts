@@ -38,6 +38,10 @@ export const aceptarInvitacion = (id: number) => api.post<Album>(`/albums/${id}/
 /** DELETE /albums/{id}/miembros/{usuario_id} → 204. Admin quita; uno mismo rechaza o sale */
 export const quitarMiembro = (id: number, usuarioId: number) => api.del(`/albums/${id}/miembros/${usuarioId}`)
 
+/** GET /albums/recomendados?limit&offset → AlbumItem[] de álbumes visibles de los que no soy miembro (Explorar) */
+export const albumsRecomendados = async (p: Paginacion = {}) =>
+  (await api.get<AlbumItem[]>('/albums/recomendados', { limit: 30, ...p })).map(conVideo)
+
 /** GET /albums/{id}/items?limit&offset → AlbumItem[] (fecha desc) */
 export const itemsDeAlbum = async (id: number, p: Paginacion = {}) =>
   (await api.get<AlbumItem[]>(`/albums/${id}/items`, { limit: 50, ...p })).map(conVideo)

@@ -31,8 +31,18 @@ function Fila({ c, yoId, activa }: { c: Conversacion; yoId: number; activa: bool
   const sinLeer = c.no_leidos > 0
   let linea = 'Sin mensajes'
   if (um) {
-    const base = albumDeInvitacion(um.texto) !== null ? 'Invitación a un álbum compartido 📸' : previewTexto(um.texto)
-    linea = um.emisor_id === yoId ? `Vos: ${base}` : base
+    const mio = um.emisor_id === yoId
+    if (um.story_id != null) {
+      const t = um.texto ? previewTexto(um.texto) : ''
+      linea = t
+        ? `${mio ? 'Respondiste a su story' : 'Respondió a tu story'}: ${t}`
+        : mio
+          ? 'Enviaste una story'
+          : 'Envió una story'
+    } else {
+      const base = albumDeInvitacion(um.texto) !== null ? 'Invitación a un álbum compartido 📸' : previewTexto(um.texto, um.post_id !== null)
+      linea = mio ? `Vos: ${base}` : base
+    }
   }
   return (
     <Link
@@ -81,7 +91,7 @@ export function Inbox({
     cn('state rounded-full px-4 py-1.5 type-label-l', on ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant')
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-1 pr-2 pl-1">
+      <header className="flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-1 pt-[env(safe-area-inset-top)] pr-2 pl-1">
         <IconButton icon="arrow_back" label="Volver" onClick={() => navegarConZoom(navigate, -1, { atras: true })} />
         <h1 className="type-title-l emphasized min-w-0 flex-1 truncate">{yo.username}</h1>
         <IconButton icon="edit_square" label="Mensaje nuevo" onClick={onNuevo} />
@@ -111,8 +121,8 @@ export function Inbox({
 }
 
 /** Texto del último mensaje sin los tokens de respuesta/multimedia (TEMPORAL hueco 14). */
-function previewTexto(texto: string | null): string {
-  if (!texto) return 'Compartió una publicación'
+function previewTexto(texto: string | null, conPost = true): string {
+  if (!texto) return conPost ? 'Compartió una publicación' : 'Story no disponible'
   const d = decodificar(texto)
   const limpio = d.texto.replace(/​/g, '').trim()
   if (limpio) return limpio

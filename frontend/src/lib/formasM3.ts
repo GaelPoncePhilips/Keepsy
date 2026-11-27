@@ -5,7 +5,7 @@ export const FORMAS = {
   circle: [0, 0, 0],
   cookie9: [9, 0.07, 0],
   clover4: [4, 0.13, Math.PI / 4],
-  sunny8: [8, 0.05, 0],
+  sunny8: [8, 0.09, 0],
   flower6: [6, 0.09, 0],
   cookie12: [12, 0.05, 0],
 } as const satisfies Record<string, readonly [number, number, number]>
@@ -32,6 +32,22 @@ export function formaPorNombre(nombre: NombreForma): string {
     cache.set(nombre, p)
   }
   return p
+}
+
+/**
+ * Forma única de TODAS las stories (fila del inicio, avatares con anillo, visor): círculo con anillos
+ * "regulares" o la galleta de 8 lóbulos con "irregulares". Antes variaba por usuario y se veía desprolijo.
+ */
+export function formaStory(regulares: boolean): string {
+  return formaPorNombre(regulares ? 'circle' : 'sunny8')
+}
+
+/** Fondo del anillo de story según su estado (tokens de index.css). */
+export function fondoAnillo(anillo: 'ninguno' | 'sin-ver' | 'visto' | 'amigos'): string | undefined {
+  if (anillo === 'sin-ver') return 'var(--keepsy-story-nueva)'
+  if (anillo === 'visto') return 'var(--keepsy-story-vista)'
+  if (anillo === 'amigos') return 'var(--keepsy-story-amigos)'
+  return undefined
 }
 
 /** Forma determinística por semilla (hash FNV-1a). */

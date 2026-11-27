@@ -15,7 +15,7 @@ export const crearConversacion = (body: CreateConversacionBody) => api.post<Conv
 export const mensajes = (id: number, antesDe?: number, limit = 30) =>
   api.get<Mensaje[]>(`/conversaciones/${id}/mensajes`, { limit, antes_de: antesDe })
 
-/** POST /conversaciones/{id}/mensajes — body {texto?, post_id?} → Mensaje. 403 si hay bloqueo */
+/** POST /conversaciones/{id}/mensajes — body {texto?, post_id?, story_id?} → Mensaje. 403 si hay bloqueo */
 export const enviarMensaje = (id: number, body: CreateMensajeBody) => api.post<Mensaje>(`/conversaciones/${id}/mensajes`, body)
 
 /** POST /conversaciones/{id}/aceptar → Conversacion */
@@ -29,3 +29,9 @@ export const anularMensaje = (id: number) => api.del(`/mensajes/${id}`)
 
 /** DELETE /conversaciones/{id} → 204. Salir / ocultar */
 export const salirDeConversacion = (id: number) => api.del(`/conversaciones/${id}`)
+
+/** Crea/obtiene la conversación 1 a 1 con `usuarioId` y le envía `body` → Mensaje. */
+export async function enviarAUsuario(usuarioId: number, body: CreateMensajeBody): Promise<Mensaje> {
+  const c = await crearConversacion({ participantes: [usuarioId] })
+  return enviarMensaje(c.id, body)
+}

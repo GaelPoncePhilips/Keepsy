@@ -18,6 +18,7 @@ class Notificacion(Base):
     post_id = Column(Integer, ForeignKey("post.id", ondelete="CASCADE"))
     comentario_id = Column(Integer, ForeignKey("comentario.id", ondelete="CASCADE"))
     album_id = Column(Integer, ForeignKey("album.id", ondelete="CASCADE"))
+    story_id = Column(Integer, ForeignKey("story.id", ondelete="CASCADE"))
     leida = Column(Boolean, nullable=False, server_default="false")
     fecha = Column(DateTime, nullable=False, server_default=func.now())
 

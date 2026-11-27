@@ -13,7 +13,7 @@ function MobileTopBarClasica() {
   const notifs = useBadges((s) => s.notificaciones)
   const msgs = useBadges((s) => s.mensajes)
   return (
-    <header className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-outline-variant/40 bg-surface px-4 md:hidden">
+    <header className="sticky top-0 z-20 flex h-[calc(60px+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] items-center justify-between border-b border-outline-variant/40 bg-surface px-4 md:hidden">
       <Link to="/" aria-label="Keepsy, inicio" className="flex items-center gap-2">
         <span className="wordmark text-[28px] leading-none text-on-surface">keepsy</span>
       </Link>
@@ -50,28 +50,41 @@ function MobileTopBarBlob() {
           <span className="wordmark text-[28px] leading-none">keepsy</span>
         </Link>
         <div className="flex items-center gap-2">
-          <Link
-            to="/notificaciones"
-            aria-label={`Notificaciones${notifs ? `, ${notifs} sin leer` : ''}`}
-            className={`${boton} rounded-full`}
-          >
-            <Icon name="notifications" size={22} />
-            {notifs > 0 && <span className="absolute top-2 right-2 size-2 rounded-full bg-tertiary" />}
-          </Link>
-          <Link
-            to="/direct"
-            aria-label={`Mensajes${msgs ? `, ${msgs} sin leer` : ''}`}
-            className={`${boton} rounded-[14px]`}
-          >
-            <Icon name="send" size={22} />
-            {msgs > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-on-error type-label-s">
-                {msgs > 9 ? '9+' : msgs}
-              </span>
-            )}
-          </Link>
+          {/* El contador va fuera del botón: la máscara/state layer del botón lo recortaba. */}
+          <span className="relative">
+            <Link
+              to="/notificaciones"
+              aria-label={`Notificaciones${notifs ? `, ${notifs} sin leer` : ''}`}
+              className={`${boton} rounded-full`}
+            >
+              <Icon name="notifications" size={22} />
+            </Link>
+            <Contador n={notifs} />
+          </span>
+          <span className="relative">
+            <Link
+              to="/direct"
+              aria-label={`Mensajes${msgs ? `, ${msgs} sin leer` : ''}`}
+              className={`${boton} rounded-[14px]`}
+            >
+              <Icon name="send" size={22} />
+            </Link>
+            <Contador n={msgs} />
+          </span>
         </div>
       </div>
     </header>
+  )
+}
+
+function Contador({ n }: { n: number }) {
+  if (n <= 0) return null
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute -top-1 -right-1 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-error px-1 text-on-error ring-2 ring-surface-container type-label-s"
+    >
+      {n > 9 ? '9+' : n}
+    </span>
   )
 }

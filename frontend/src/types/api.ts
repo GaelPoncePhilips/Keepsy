@@ -69,6 +69,8 @@ export interface UpdateUsuarioBody {
   bio?: string | null
   es_privada?: boolean
   reels_desactivados?: boolean
+  /** Foto de perfil; "" la quita. */
+  foto_url?: string
 }
 
 export interface Sugerencia extends UsuarioResumen {
@@ -116,6 +118,8 @@ export interface Post {
   url_video: string | null
   duracion_seg: number | null
   descripcion: string | null
+  /** Carrusel: fotos que siguen a url_imagen (vacío o ausente = una sola foto). */
+  imagenes_extra?: string[]
   fecha_publicacion: ISODate
   cantidad_likes: number
   cantidad_comentarios: number
@@ -134,6 +138,7 @@ export interface CreatePostBody {
   url_video?: string | null
   duracion_seg?: number | null
   descripcion?: string | null
+  imagenes_extra?: string[]
 }
 export interface Comentario {
   id: number
@@ -153,6 +158,12 @@ export interface Story {
   fecha_publicacion: ISODate
   fecha_vencimiento: ISODate
   vista: boolean
+  /** Texto sobre la story; puede llevar @menciones. */
+  texto?: string | null
+  /** Si yo le di me gusta. */
+  me_gusta?: boolean
+  /** Solo el dueño la recibe con valor; para el resto 0. */
+  cantidad_likes?: number
 }
 export interface StoriesDeUsuario {
   usuario: UsuarioResumen
@@ -161,10 +172,22 @@ export interface StoriesDeUsuario {
 }
 export interface Vista extends UsuarioResumen {
   fecha: ISODate
+  /** Quien la vio también le dio me gusta. */
+  me_gusta?: boolean
+}
+/** GET /stories/{id}/likes */
+export interface LikeStory extends UsuarioResumen {
+  fecha: ISODate
+}
+export interface EstadoLikeStory {
+  me_gusta: boolean
+  cantidad_likes: number
 }
 export interface CreateStoryBody {
   url_imagen: string
   solo_mejores_amigos?: boolean
+  /** Texto sobre la story (máx. 200); las @menciones notifican a esas cuentas. */
+  texto?: string | null
 }
 
 // ---------- Hashtags
@@ -246,6 +269,11 @@ export interface Mensaje {
   emisor_id: number
   texto: string | null
   post_id: number | null
+  /** Story respondida (con texto) o reenviada (sin texto). null si se borró. */
+  story_id?: number | null
+  /** Miniatura y autor de la story (para pintar la burbuja sin otra llamada). */
+  story_url_imagen?: string | null
+  story_usuario_id?: number | null
   fecha: ISODate
 }
 export type EstadoConversacion = 'solicitud' | 'aceptada'
@@ -265,6 +293,8 @@ export interface CreateConversacionBody {
 export interface CreateMensajeBody {
   texto?: string | null
   post_id?: number | null
+  /** Responder (con texto) o reenviar (sin texto) una story. */
+  story_id?: number | null
 }
 
 // ---------- Paginación

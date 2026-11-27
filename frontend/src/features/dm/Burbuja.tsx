@@ -13,6 +13,7 @@ import { useBadges } from '../../stores/badges'
 import { useYo } from '../../stores/session'
 import { snackbar } from '../../stores/ui'
 import type { Album, Mensaje, Post, UsuarioResumen } from '../../types/api'
+import { usuarioPorId } from '../../services/temporal'
 import { decodificar } from '../../services/temporal/comentariosExtra'
 import { AvatarStack } from '../albums/common'
 import { MediaAdjunta } from '../post/comentarios'
@@ -143,6 +144,71 @@ function InvitacionAlbumCard({ albumId, mio }: { albumId: number; mio: boolean }
   )
 }
 
+// Caché de autores de stories reenviadas.
+const cacheAutores = new Map<number, Promise<UsuarioResumen | null>>()
+function autorStory(id: number): Promise<UsuarioResumen | null> {
+  let p = cacheAutores.get(id)
+  if (!p) {
+    p = usuarioPorId(id).catch(() => null)
+    cacheAutores.set(id, p)
+  }
+  return p
+}
+
+function MiniaturaStory({ m, ancho }: { m: Mensaje; ancho: number }) {
+  const navigate = useNavigate()
+  const sid = m.story_id ?? null
+  if (sid === null || !m.story_url_imagen)
+    return (
+      <div style={{ width: ancho }} className="type-body-s flex aspect-[9/16] items-center justify-center rounded-lg bg-surface-container-high p-2 text-center text-on-surface-variant italic">
+        Story no disponible
+      </div>
+    )
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(`/story/${sid}`)}
+      aria-label="Ver story"
+      style={{ width: ancho }}
+      className="block aspect-[9/16] overflow-hidden rounded-lg bg-surface-container-high"
+    >
+      <img src={m.story_url_imagen} alt="Story" className="size-full object-cover" loading="lazy" />
+    </button>
+  )
+}
+
+function StoryReenviadaCard({ m }: { m: Mensaje }) {
+  const navigate = useNavigate()
+  const [autor, setAutor] = useState<UsuarioResumen | null>(null)
+  const uid = m.story_usuario_id ?? null
+  useEffect(() => {
+    if (uid === null) return
+    let vivo = true
+    void autorStory(uid).then((u) => {
+      if (vivo) setAutor(u)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [uid])
+  const sid = m.story_id ?? null
+  if (sid === null || !m.story_url_imagen) return <MiniaturaStory m={m} ancho={140} />
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(`/story/${sid}`)}
+      aria-label={autor ? `Ver story de ${autor.username}` : 'Ver story'}
+      className="block w-[140px] overflow-hidden rounded-lg border border-outline-variant bg-surface-container-highest text-left text-on-surface"
+    >
+      <span className="flex items-center gap-1.5 px-2 py-1.5">
+        {autor && <Avatar username={autor.username} size={22} />}
+        <span className="type-label-m emphasized truncate">{autor?.username ?? 'Story'}</span>
+      </span>
+      <img src={m.story_url_imagen} alt={autor ? `Story de ${autor.username}` : 'Story'} className="aspect-[9/16] w-full object-cover" loading="lazy" />
+    </button>
+  )
+}
+
 interface BurbujaProps {
   m: Mensaje
   mio: boolean
@@ -185,6 +251,8 @@ export function Burbuja({ m, mio, emisor, grupal, conPrev, conNext, isMobile, on
   const invitacion = albumDeInvitacion(m.texto)
   const { texto: textoLimpio, media } = decodificar(m.texto ?? '')
   const textoVisible = textoLimpio.replace(/\u200b/g, '')
+  const esStory = m.story_id != null
+  const vacio = !esStory && m.post_id === null && !textoVisible && !media && invitacion === null
   return (
     <div className={cn('group flex items-end gap-2', mio ? 'justify-end' : 'justify-start', conPrev ? 'mt-0.5' : 'mt-2')}>
       {!mio && grupal && (
@@ -197,6 +265,24 @@ export function Burbuja({ m, mio, emisor, grupal, conPrev, conNext, isMobile, on
       )}
       <div className={cn('flex max-w-[70%] flex-col', mio ? 'items-end' : 'items-start')}>
         {grupal && !mio && !conPrev && emisor && <span className="type-label-s mb-0.5 ml-3 text-on-surface-variant">{emisor.username}</span>}
+        {esStory && textoVisible && (
+          <span className="type-label-s mb-1 px-1 text-on-surface-variant">{mio ? 'Respondiste a su story' : 'Respondió a tu story'}</span>
+        )}
+        {esStory && textoVisible && (
+          <div {...pressProps} className="mb-0.5">
+            <MiniaturaStory m={m} ancho={96} />
+          </div>
+        )}
+        {esStory && !textoVisible && !media && (
+          <div {...pressProps}>
+            <StoryReenviadaCard m={m} />
+          </div>
+        )}
+        {vacio && (
+          <div {...pressProps} className="type-body-m rounded-lg bg-surface-container-highest px-4 py-2 text-on-surface-variant italic">
+            Story no disponible
+          </div>
+        )}
         {m.post_id !== null && <PostCard postId={m.post_id} mio={mio} />}
         {invitacion !== null && (
           <div {...pressProps}>

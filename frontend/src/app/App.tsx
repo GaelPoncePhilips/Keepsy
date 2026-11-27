@@ -73,6 +73,7 @@ function AppRoutes() {
             <Route path="/p/:id" element={<PostPage />} />
             <Route path="/stories/:usuarioId" element={<StoryViewerPage modo="usuario" />} />
             <Route path="/destacadas/:id" element={<StoryViewerPage modo="destacada" />} />
+            <Route path="/story/:id" element={<StoryViewerPage modo="story" />} />
             <Route path="/direct" element={<DirectPage />} />
             <Route path="/direct/solicitudes" element={<DirectPage />} />
             <Route path="/direct/nuevo" element={<DirectPage />} />

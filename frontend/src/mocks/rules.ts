@@ -116,6 +116,7 @@ export function postDTO(db: Db, p: DbPost, yo: number, motivo?: string): Post {
     usuario_id: p.usuario_id,
     autor_username: autor.username,
     autor_nombre: autor.nombre,
+    imagenes_extra: p.imagenes_extra ?? [],
     tipo: p.tipo,
     url_imagen: p.url_imagen,
     url_video: p.url_video,
@@ -167,6 +168,10 @@ export function storyDTO(db: Db, s: DbStory, yo: number): Story {
     fecha_publicacion: s.fecha_publicacion,
     fecha_vencimiento: s.fecha_vencimiento,
     vista: db.vistas.some((v) => v.story_id === s.id && v.usuario_id === yo),
+    texto: s.texto ?? null,
+    me_gusta: db.storyLikes.some((l) => l.story_id === s.id && l.usuario_id === yo),
+    // La cantidad de likes solo la ve el dueño.
+    cantidad_likes: s.usuario_id === yo ? db.storyLikes.filter((l) => l.story_id === s.id).length : 0,
   }
 }
 
@@ -233,7 +238,11 @@ export function conversacionDTO(db: Db, convId: number, yo: number): Conversacio
     participantes: parts
       .filter((p) => p.usuario_id !== yo)
       .map((p) => resumen(usuario(db, p.usuario_id))),
-    ultimo_mensaje: ultimo,
+    ultimo_mensaje: ultimo && {
+      ...ultimo,
+      story_url_imagen: db.stories.find((st) => st.id === ultimo.story_id)?.url_imagen ?? null,
+      story_usuario_id: db.stories.find((st) => st.id === ultimo.story_id)?.usuario_id ?? null,
+    },
     no_leidos: noLeidos,
   }
 }

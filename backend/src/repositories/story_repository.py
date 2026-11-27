@@ -1,12 +1,16 @@
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.db.models.story_model import Story
+from src.db.models.story_model import Story, StoryLike
 
-# Columnas de story + si :yo ya la vio. Alias st.
+# Columnas de story + si :yo ya la vio / le dio me gusta. Alias st. La cantidad de likes solo la ve el dueño.
 COLUMNAS = """st.id, st.usuario_id, st.url_imagen, st.solo_mejores_amigos, st.fecha_publicacion,
-              st.fecha_vencimiento,
-              EXISTS (SELECT 1 FROM vistas_story v WHERE v.story_id = st.id AND v.usuario_id = :yo) AS vista"""
+              st.fecha_vencimiento, st.texto,
+              EXISTS (SELECT 1 FROM vistas_story v WHERE v.story_id = st.id AND v.usuario_id = :yo) AS vista,
+              EXISTS (SELECT 1 FROM story_like sl WHERE sl.story_id = st.id AND sl.usuario_id = :yo) AS me_gusta,
+              CASE WHEN st.usuario_id = :yo THEN (SELECT count(*) FROM story_like sl JOIN usuario u_l ON u_l.id = sl.usuario_id
+                                                  AND u_l.eliminado_en IS NULL WHERE sl.story_id = st.id)
+                   ELSE 0 END AS cantidad_likes"""
 # :yo puede ver esta story por la regla de mejores amigos (HU8)
 PERMITE_MEJORES_AMIGOS = """(st.usuario_id = :yo OR NOT st.solo_mejores_amigos OR EXISTS (
     SELECT 1 FROM mejores_amigos ma WHERE ma.usuario_id = st.usuario_id AND ma.amigo_id = :yo))"""
@@ -20,12 +24,45 @@ class StoryRepository:
     def _filas(self, sql: str, **p) -> list[dict]:
         return [dict(r) for r in self.db.execute(text(sql), p).mappings().all()]
 
-    def crear(self, usuario_id: int, url_imagen: str, solo_mejores_amigos: bool) -> Story:
-        story = Story(usuario_id=usuario_id, url_imagen=url_imagen, solo_mejores_amigos=solo_mejores_amigos)
+    def crear(self, usuario_id: int, url_imagen: str, solo_mejores_amigos: bool, texto: str | None = None) -> Story:
+        """Sin commit: el caso de uso lo hace junto con las notificaciones de menciones."""
+        story = Story(usuario_id=usuario_id, url_imagen=url_imagen, solo_mejores_amigos=solo_mejores_amigos, texto=texto)
         self.db.add(story)
-        self.db.commit()
-        self.db.refresh(story)
+        self.db.flush()
         return story
+
+    def detalle(self, story_id: int, yo: int) -> dict | None:
+        filas = self._filas(f"SELECT {COLUMNAS} FROM story st WHERE st.id = :id", id=story_id, yo=yo)
+        return filas[0] if filas else None
+
+    def en_destacada(self, story_id: int) -> bool:
+        return self.db.execute(text("SELECT EXISTS (SELECT 1 FROM destacada_story WHERE story_id = :id)"),
+                               {"id": story_id}).scalar() is True
+
+    # ---------- Likes (EXTRA)
+    def dar_like(self, usuario_id: int, story_id: int) -> bool:
+        """True si es un like nuevo. Sin commit."""
+        if self.db.get(StoryLike, (usuario_id, story_id)) is not None:
+            return False
+        self.db.add(StoryLike(usuario_id=usuario_id, story_id=story_id))
+        self.db.flush()
+        return True
+
+    def quitar_like(self, usuario_id: int, story_id: int) -> None:
+        self.db.query(StoryLike).filter(StoryLike.usuario_id == usuario_id, StoryLike.story_id == story_id).delete()
+
+    def estado_like(self, story_id: int, yo: int) -> dict:
+        return dict(self.db.execute(text(
+            """SELECT EXISTS (SELECT 1 FROM story_like WHERE story_id = :id AND usuario_id = :yo) AS me_gusta,
+                      (SELECT count(*) FROM story_like sl JOIN usuario u ON u.id = sl.usuario_id AND u.eliminado_en IS NULL
+                       WHERE sl.story_id = :id) AS cantidad_likes"""), {"id": story_id, "yo": yo}).mappings().one())
+
+    def likes(self, story_id: int, limit: int, offset: int) -> list[dict]:
+        return self._filas(
+            """SELECT u.id, u.username, u.nombre, sl.fecha FROM story_like sl
+               JOIN usuario u ON u.id = sl.usuario_id AND u.eliminado_en IS NULL
+               WHERE sl.story_id = :sid ORDER BY sl.fecha DESC LIMIT :limit OFFSET :offset""",
+            sid=story_id, limit=limit, offset=offset)
 
     def buscar_por_id(self, story_id: int) -> Story | None:
         return self.db.get(Story, story_id)
@@ -72,7 +109,9 @@ class StoryRepository:
 
     def vistas(self, story_id: int, limit: int, offset: int) -> list[dict]:
         return self._filas(
-            """SELECT u.id, u.username, u.nombre, v.fecha FROM vistas_story v JOIN usuario u ON u.id = v.usuario_id AND u.eliminado_en IS NULL
+            """SELECT u.id, u.username, u.nombre, v.fecha,
+                      EXISTS (SELECT 1 FROM story_like sl WHERE sl.story_id = v.story_id AND sl.usuario_id = u.id) AS me_gusta
+               FROM vistas_story v JOIN usuario u ON u.id = v.usuario_id AND u.eliminado_en IS NULL
                WHERE v.story_id = :sid ORDER BY v.fecha DESC LIMIT :limit OFFSET :offset""",
             sid=story_id, limit=limit, offset=offset)
 

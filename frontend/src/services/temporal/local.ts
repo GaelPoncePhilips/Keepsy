@@ -1,12 +1,43 @@
 // TEMPORAL — piezas 100 % de cliente mientras el backend no las tenga (docs/TEMPORAL.md).
-import { temporal } from '../../config/env'
+import { env, temporal } from '../../config/env'
 import { DEV_CUENTAS } from '../../mocks/seed'
 
-// ---------- Hueco 6: avatares (ninguna entidad tiene foto de perfil)
-/** TEMPORAL: avatar determinista por username. Borrar cuando exista `url_avatar`. Flag VITE_TEMPORAL_AVATARES. */
+// ---------- Foto de perfil
+// Backend real: GET /usuarios/{username}/avatar redirige a la foto elegida (404 = sin foto → estrella por defecto).
+// Mock: las fotos elegidas se guardan en localStorage. Nunca se asigna una foto automática.
+const KEY_FOTOS = 'keepsy.fotos'
+function leerFotos(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(KEY_FOTOS) ?? '{}') as Record<string, string>
+  } catch {
+    return {}
+  }
+}
+/** Versión por username: cambia al actualizar la foto para saltear la caché del navegador. */
+const versiones = new Map<string, number>()
+const oyentes = new Set<() => void>()
+export function suscribirAvatares(fn: () => void): () => void {
+  oyentes.add(fn)
+  return () => oyentes.delete(fn)
+}
+export function avatarCambiado(username: string, url?: string | null) {
+  if (env.useMock) {
+    const f = leerFotos()
+    if (url) f[username] = url
+    else delete f[username]
+    try {
+      localStorage.setItem(KEY_FOTOS, JSON.stringify(f))
+    } catch {
+      /* sin almacenamiento */
+    }
+  }
+  versiones.set(username, Date.now())
+  oyentes.forEach((fn) => fn())
+}
 export function avatarUrl(username: string): string | null {
-  if (!temporal.avatares) return null
-  return `https://picsum.photos/seed/avatar-${encodeURIComponent(username)}/150/150`
+  if (env.useMock) return leerFotos()[username] ?? null
+  const v = versiones.get(username)
+  return `${env.apiUrl}/usuarios/${encodeURIComponent(username)}/avatar${v ? `?v=${v}` : ''}`
 }
 
 // ---------- Hueco 10: guardar posts (sin endpoint)

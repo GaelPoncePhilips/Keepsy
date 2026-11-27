@@ -4,13 +4,25 @@ import { InputChip, SearchBar } from '../../components/ui/Controls'
 import { LoadingShape } from '../../components/ui/Feedback'
 import { Icon } from '../../components/ui/Icon'
 import { cn, useAsync } from '../../lib/hooks'
-import { buscarUsuarios } from '../../services/temporal'
-import { seguidos } from '../../services/usuarios'
+import { seguidores } from '../../services/usuarios'
 import { useYo } from '../../stores/session'
 import type { UsuarioResumen } from '../../types/api'
 
+const normalizar = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+
+/** Seguidores aceptados (hasta 500, de a 50). */
+async function todosLosSeguidores(id: number): Promise<UsuarioResumen[]> {
+  const out: UsuarioResumen[] = []
+  for (let offset = 0; offset < 500; offset += 50) {
+    const pag = await seguidores(id, { limit: 50, offset })
+    out.push(...pag)
+    if (pag.length < 50) break
+  }
+  return out
+}
+
 /**
- * Elegir amigos con buscador y chips de entrada (M3). Sugeridos = cuentas que seguís.
+ * Elegir a quién invitar, con buscador y chips de entrada (M3). Solo se puede invitar a quienes te siguen.
  * `excluir`: ids que ya están en el álbum.
  */
 export function FriendPicker({
@@ -29,12 +41,14 @@ export function FriendPicker({
     const t = window.setTimeout(() => setDebounced(q.trim()), 250)
     return () => window.clearTimeout(t)
   }, [q])
-  const sugeridos = useAsync(() => seguidos(yo.id, { limit: 50 }), [yo.id])
-  const resultados = useAsync(() => (debounced ? buscarUsuarios(debounced) : Promise.resolve<UsuarioResumen[]>([])), [debounced])
-  const lista = (debounced ? resultados.data : sugeridos.data) ?? []
+  const sugeridos = useAsync(() => todosLosSeguidores(yo.id), [yo.id])
+  const qn = normalizar(debounced)
+  const lista = (sugeridos.data ?? []).filter(
+    (u) => !qn || normalizar(u.username).includes(qn) || normalizar(u.nombre).includes(qn),
+  )
   const elegidos = new Set(value.map((u) => u.id))
   const toggle = (u: UsuarioResumen) => onChange(elegidos.has(u.id) ? value.filter((x) => x.id !== u.id) : [...value, u])
-  const cargando = debounced ? resultados.loading : sugeridos.loading
+  const cargando = sugeridos.loading
 
   return (
     <div className="flex flex-col gap-3">
@@ -45,8 +59,8 @@ export function FriendPicker({
           ))}
         </div>
       )}
-      <SearchBar value={q} onChange={setQ} placeholder="Buscar amigos" />
-      <p className="type-label-l px-1 text-on-surface-variant">{debounced ? 'Resultados' : 'Cuentas que seguís'}</p>
+      <SearchBar value={q} onChange={setQ} placeholder="Buscar entre tus seguidores" />
+      <p className="type-label-l px-1 text-on-surface-variant">{debounced ? 'Resultados entre tus seguidores' : 'Tus seguidores'}</p>
       {cargando && !lista.length ? (
         <div className="flex justify-center py-6">
           <LoadingShape />
@@ -85,7 +99,7 @@ export function FriendPicker({
             })}
           {!cargando && lista.length === 0 && (
             <li className="type-body-m px-2 py-4 text-center text-on-surface-variant">
-              {debounced ? 'No encontramos cuentas con ese nombre.' : 'Todavía no seguís a nadie. Buscá a tus amigos.'}
+              {debounced ? 'Ninguno de tus seguidores coincide con esa búsqueda.' : 'Todavía nadie te sigue. Solo podés invitar a tus seguidores.'}
             </li>
           )}
         </ul>

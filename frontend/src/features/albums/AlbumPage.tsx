@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { navegarConZoom } from '../../lib/transicion'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { ScreenHeader } from '../../components/shared'
 import { Ambient } from '../../components/ui/Ambient'
 import { Avatar } from '../../components/ui/Avatar'
@@ -34,6 +34,8 @@ import { FriendPicker } from './FriendPicker'
 import { CajaComentario, type FuenteComentarios } from '../post/comentarios'
 import { CommentsSheet } from '../post/CommentsSheet'
 import { LikesSheet } from '../post/LikesSheet'
+import { RichText } from '../post/RichText'
+import { MentionField } from '../../components/ui/MentionField'
 import { numeroCorto } from '../../lib/time'
 
 /**
@@ -53,7 +55,30 @@ export function AlbumPage() {
   const [editar, setEditar] = useState(false)
   const [menu, setMenu] = useState(false)
   const [confirm, setConfirm] = useState<'borrar' | 'salir' | null>(null)
-  const [visor, setVisor] = useState<AlbumItem | null>(null)
+  // El visor vive en la URL (?item=ID): "atrás" lo cierra sin salir del álbum ni recargar.
+  const [params, setParams] = useSearchParams()
+  const location = useLocation()
+  const itemId = Number(params.get('item')) || null
+  const abrirVisor = (it: AlbumItem, reemplazar = false) =>
+    setParams(
+      (p) => {
+        p.set('item', String(it.id))
+        return p
+      },
+      // Al pasar de foto se reemplaza la entrada y se conserva si el visor se abrió desde la grilla.
+      { replace: reemplazar, state: reemplazar ? location.state : { visor: true } },
+    )
+  const cerrarVisor = () => {
+    if ((location.state as { visor?: boolean } | null)?.visor) navigate(-1)
+    else
+      setParams(
+        (p) => {
+          p.delete('item')
+          return p
+        },
+        { replace: true },
+      )
+  }
 
   if (album.error) {
     const st = album.error instanceof ApiError ? album.error.status : 0
@@ -74,6 +99,8 @@ export function AlbumPage() {
 
   const a = album.data
   const lista = items.data ?? []
+  const idxVisor = itemId === null ? -1 : lista.findIndex((x) => x.id === itemId)
+  const visor = idxVisor >= 0 ? lista[idxVisor] : null
   const { esMiembro, esAdmin, pendiente } = miRol(a, yo.id)
   const aceptados = miembrosAceptados(a)
   const creador = a.miembros.find((m) => m.id === a.creador_id)
@@ -217,7 +244,7 @@ export function AlbumPage() {
         ) : (
           <div className="grid grid-cols-3" style={{ gap: 'var(--grid-gap)' }}>
             {lista.map((it) => (
-              <ItemTile key={it.id} item={it} miembros={a.miembros} onOpen={() => setVisor(it)} />
+              <ItemTile key={it.id} item={it} miembros={a.miembros} onOpen={() => abrirVisor(it)} />
             ))}
           </div>
         )}
@@ -274,13 +301,19 @@ export function AlbumPage() {
       {editar && <EditDialog album={a} items={lista} onClose={() => setEditar(false)} onSaved={setAlbum} />}
       {visor && (
         <ItemViewer
+          key={visor.id}
           item={visor}
           miembros={a.miembros}
           puedeBorrar={visor.usuario_id === yo.id || esAdmin}
-          onClose={() => setVisor(null)}
+          posicion={`${idxVisor + 1} de ${lista.length}`}
+          onAnterior={idxVisor > 0 ? () => abrirVisor(lista[idxVisor - 1], true) : undefined}
+          onSiguiente={idxVisor < lista.length - 1 ? () => abrirVisor(lista[idxVisor + 1], true) : undefined}
+          onClose={cerrarVisor}
           onDeleted={() => {
+            const sig = lista[idxVisor + 1] ?? lista[idxVisor - 1]
             items.setData((p) => (p ?? []).filter((x) => x.id !== visor.id))
-            setVisor(null)
+            if (sig) abrirVisor(sig, true)
+            else cerrarVisor()
           }}
         />
       )}
@@ -317,15 +350,33 @@ function ItemViewer({
   item,
   miembros,
   puedeBorrar,
+  posicion,
+  onAnterior,
+  onSiguiente,
   onClose,
   onDeleted,
 }: {
   item: AlbumItem
   miembros: UsuarioResumen[]
   puedeBorrar: boolean
+  posicion: string
+  onAnterior?: () => void
+  onSiguiente?: () => void
   onClose: () => void
   onDeleted: () => void
 }) {
+  // Teclado ←/→ y deslizar a los lados para pasar de una foto a otra sin salir del visor.
+  const inicio = useRef<{ x: number; y: number } | null>(null)
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      const t = e.target
+      if (t instanceof Element && t.closest('input, textarea, [contenteditable="true"]')) return
+      if (e.key === 'ArrowLeft' && onAnterior) onAnterior()
+      else if (e.key === 'ArrowRight' && onSiguiente) onSiguiente()
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onAnterior, onSiguiente])
   const yo = useYo()
   const autor = useAutor(item.usuario_id, miembros)
   const [confirm, setConfirm] = useState(false)
@@ -362,7 +413,7 @@ function ItemViewer({
     alternarLike(true)
   }
   return (
-    <Dialog open onClose={onClose} title={item.tipo === 'video' ? 'Video' : 'Foto'} width={720} fullscreenMobile>
+    <Dialog open onClose={onClose} title={`${item.tipo === 'video' ? 'Video' : 'Foto'} · ${posicion}`} width={720} fullscreenMobile>
       <div className="flex flex-col">
         <div className="flex items-center gap-3 px-4 py-3">
           {autor && <Avatar username={autor.username} size={32} />}
@@ -376,7 +427,42 @@ function ItemViewer({
           </div>
           {puedeBorrar && <IconButton icon="delete" label="Quitar del álbum" onClick={() => setConfirm(true)} />}
         </div>
-        <div className="relative flex items-center justify-center overflow-hidden bg-black select-none" onDoubleClick={doble}>
+        <div
+          className="relative flex touch-pan-y items-center justify-center overflow-hidden bg-black select-none"
+          onDoubleClick={doble}
+          onPointerDown={(e) => {
+            inicio.current = { x: e.clientX, y: e.clientY }
+          }}
+          onPointerUp={(e) => {
+            const i = inicio.current
+            inicio.current = null
+            if (!i) return
+            const dx = e.clientX - i.x
+            if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(e.clientY - i.y)) return
+            if (dx < 0) onSiguiente?.()
+            else onAnterior?.()
+          }}
+        >
+          {onAnterior && (
+            <button
+              type="button"
+              aria-label="Foto anterior"
+              onClick={onAnterior}
+              className="absolute top-1/2 left-2 z-20 flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-black"
+            >
+              <Icon name="chevron_left" />
+            </button>
+          )}
+          {onSiguiente && (
+            <button
+              type="button"
+              aria-label="Foto siguiente"
+              onClick={onSiguiente}
+              className="absolute top-1/2 right-2 z-20 flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-black"
+            >
+              <Icon name="chevron_right" />
+            </button>
+          )}
           <Ambient src={item.url_imagen} />
           <div className="relative z-10 flex w-full items-center justify-center">
           {item.tipo === 'video' && item.url_video ? (
@@ -420,7 +506,7 @@ function ItemViewer({
               {numeroCorto(likes.cantidad)} Me gusta
             </button>
           )}
-          {item.descripcion && <p className="type-body-m break-words">{item.descripcion}</p>}
+          {item.descripcion && <p className="type-body-m break-words"><RichText text={item.descripcion} /></p>}
           {comentariosN > 0 && (
             <button type="button" className="type-body-m block text-on-surface-variant" onClick={() => setSheet('comentarios')}>
               {comentariosN === 1 ? 'Ver 1 comentario' : `Ver los ${numeroCorto(comentariosN)} comentarios`}
@@ -637,7 +723,7 @@ function UploadDialog({ albumId, onClose, onUploaded }: { albumId: number; onClo
         <div className={isMobile ? '' : 'mx-auto w-full max-w-[360px]'}>
           <MediaPicker accept="ambos" value={media} onChange={setMedia} aspect="1 / 1" />
         </div>
-        <TextField label="Descripción (opcional)" value={descripcion} onChange={setDescripcion} maxLength={300} />
+        <MentionField label="Descripción (opcional)" value={descripcion} onChange={setDescripcion} maxLength={300} />
       </div>
     </Dialog>
   )

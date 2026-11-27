@@ -17,6 +17,7 @@ CREATE TABLE Usuario (
     password_hash  VARCHAR(255) NOT NULL,                 -- EXTRA: para login
     nombre         VARCHAR(100) NOT NULL,
     bio            VARCHAR(255),
+    foto_url       VARCHAR(500),                           -- EXTRA: foto de perfil (NULL = estrella por defecto)
     es_privada     BOOLEAN   NOT NULL DEFAULT FALSE,
     reels_desactivados BOOLEAN NOT NULL DEFAULT FALSE,      -- EXTRA: no ver reels
     eliminado_en   TIMESTAMP,                              -- EXTRA: borrado lógico (NULL = activa)
@@ -34,6 +35,7 @@ CREATE TABLE Post (
     url_video         VARCHAR,                            -- EXTRA: solo reels
     duracion_seg      INT CHECK (duracion_seg > 0),       -- EXTRA: solo reels
     fecha_edicion     TIMESTAMP,                          -- EXTRA
+    imagenes_extra    VARCHAR[] NOT NULL DEFAULT '{}',    -- EXTRA: carrusel (fotos después de url_imagen)
     CHECK ((tipo = 'reel') = (url_video IS NOT NULL))
 );
 CREATE INDEX idx_post_usuario_fecha ON Post (usuario_id, fecha_publicacion DESC);
@@ -58,6 +60,7 @@ CREATE TABLE Story (
     solo_mejores_amigos BOOLEAN   NOT NULL DEFAULT FALSE,
     fecha_publicacion   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fecha_vencimiento   TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours'),
+    texto               VARCHAR(200),                     -- EXTRA: texto sobre la story (puede llevar @menciones)
     CHECK (fecha_vencimiento > fecha_publicacion),
     UNIQUE (id, usuario_id)                               -- para FK compuesta de destacada_story
 );
@@ -217,8 +220,9 @@ CREATE TABLE Mensaje (
     emisor_id       INT NOT NULL REFERENCES Usuario(id)      ON DELETE CASCADE,
     texto           VARCHAR(1000),
     post_id         INT REFERENCES Post(id) ON DELETE SET NULL,   -- post compartido
-    fecha           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CHECK (texto IS NOT NULL OR post_id IS NOT NULL)
+    story_id        INT REFERENCES Story(id) ON DELETE SET NULL,  -- respuesta (con texto) o story reenviada
+    fecha           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- texto, post_id o story_id: lo valida la API (un CHECK chocaría con ON DELETE SET NULL)
 );
 CREATE INDEX idx_mensaje_conv_fecha ON Mensaje (conversacion_id, id DESC);
 
@@ -236,10 +240,12 @@ CREATE TABLE Notificacion (
     actor_id      INT NOT NULL REFERENCES Usuario(id) ON DELETE CASCADE,   -- quién la generó
     tipo          VARCHAR(20) NOT NULL CHECK (tipo IN (
                       'seguidor_nuevo', 'solicitud', 'solicitud_aceptada',
-                      'like', 'comentario', 'invitacion_album')),
+                      'like', 'comentario', 'invitacion_album',
+                      'mencion', 'mencion_comentario', 'like_story', 'mencion_story')),
     post_id       INT REFERENCES Post(id)       ON DELETE CASCADE,
     comentario_id INT REFERENCES Comentario(id) ON DELETE CASCADE,
     album_id      INT REFERENCES Album(id)      ON DELETE CASCADE,
+    story_id      INT REFERENCES Story(id)      ON DELETE CASCADE,
     leida         BOOLEAN   NOT NULL DEFAULT FALSE,
     fecha         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CHECK (usuario_id <> actor_id)
@@ -309,3 +315,16 @@ CREATE TABLE album_item_comentario (
     fecha      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_album_item_comentario_item ON album_item_comentario (item_id, fecha);
+
+
+-- ---------------------------------------------------------------------
+-- EXTRA: likes de stories
+-- ---------------------------------------------------------------------
+
+CREATE TABLE story_like (
+    usuario_id INT NOT NULL REFERENCES Usuario(id) ON DELETE CASCADE,
+    story_id   INT NOT NULL REFERENCES Story(id)   ON DELETE CASCADE,
+    fecha      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (usuario_id, story_id)
+);
+CREATE INDEX idx_story_like_story ON story_like (story_id, fecha DESC);
